@@ -1,3 +1,10 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    /* Just some fun base styles that are global */
+    @apply bg-light-surface text-light-on-surface caret-light-primary accent-light-primary selection:bg-light-primary selection:text-light-on-primary;
+  }
+}
