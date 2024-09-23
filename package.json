@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "wasm": "wasm-pack build ./rust"
   },
   "dependencies": {
     "solid-js": "^1.8.15"
