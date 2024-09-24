@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "wasm": "wasm-pack build ./rust"
+    "wasm": "wasm-pack build ../core"
   },
   "dependencies": {
     "@solidjs/router": "^0.14.5",
