@@ -1,5 +1,6 @@
 import { createContext, createSignal, useContext } from "solid-js";
-import { AppState, GroupId } from "../../rust/pkg/meal";
+//TODO register rust wasm pack package as package in workspace
+import { AppState } from "../../../core/pkg";
 
 /**
  * @import { ParentProps, Context, Accessor } from "solid-js";
