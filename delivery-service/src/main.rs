@@ -12,8 +12,8 @@ use axum::{
 };
 use extractor::TlsCodec;
 use openmls::prelude::MlsMessageIn;
-use tokio::sync::{watch, Mutex};
-use tokio_stream::{wrappers::WatchStream, StreamExt};
+use tokio::sync::{mpsc, Mutex};
+use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tower_http::cors::CorsLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -21,7 +21,7 @@ mod extractor;
 
 #[derive(Clone, Default)]
 struct AppState {
-    channels: Arc<Mutex<HashMap<Arc<str>, watch::Sender<Message>>>>,
+    channels: Arc<Mutex<HashMap<Arc<str>, mpsc::Sender<MlsMessageIn>>>>,
 }
 
 #[tokio::main]
@@ -40,7 +40,7 @@ async fn main() {
 
     let mut app = Router::new()
         .route("/messages/:to", post(create_message))
-        .route("/messages", get(subscribe_messages));
+        .route("/messages/:to", get(subscribe_messages));
 
     // Not looking nice, but functional to have CORS only in development
     #[cfg(debug_assertions)]
@@ -61,28 +61,24 @@ async fn main() {
 }
 
 /// This endpoint receives messages sent by clients to be delivered to other clients
-#[axum::debug_handler]
 async fn create_message(
     State(state): State<AppState>,
     Path(to): Path<Arc<str>>,
     TlsCodec(message): TlsCodec<MlsMessageIn>,
 ) -> impl IntoResponse {
     let channels = state.channels.lock().await;
+    //TODO think about not leaking if they exist or not
+    //TODO think about leaking data through timings
     let Some(sender) = channels.get(to.as_ref()) else {
-        return StatusCode::BAD_REQUEST;
+        return StatusCode::NOT_FOUND;
     };
 
-    if let Err(error) = sender.send(Message) {
+    if let Err(error) = sender.send(message).await {
         tracing::error!("Error sending message {:?}", error);
     }
 
     StatusCode::CREATED
 }
-
-/// Clients use this endpoint to make themselves available for receiving messages
-async fn register(State(state): State<AppState>) {}
-#[derive(Clone)]
-struct Message;
 
 /// Handles requests for listening to server sent events (SSE) that are used to send incoming messages from the server to the client
 async fn subscribe_messages(
@@ -92,7 +88,8 @@ async fn subscribe_messages(
     //TODO add cryptographic client authentication to avoid session hijacking
     //TODO (continued) (even though the hijacker can't read the messages most likely, they can analyze traffic meta data for that client)
 
-    let (sender, receiver) = watch::channel(Message);
+    //TODO decide on buffer size
+    let (sender, receiver) = mpsc::channel(8);
     // Register sender for this id
     let previous_sender = state.channels.lock().await.insert(client_id, sender);
     if let Some(previous_sender) = previous_sender {
@@ -103,7 +100,7 @@ async fn subscribe_messages(
         drop(previous_sender);
     }
 
-    let stream = WatchStream::new(receiver).map(|_value| Ok(Event::default()));
+    let stream = ReceiverStream::new(receiver).map(|_value| Ok(Event::default()));
 
     let keep_alive = KeepAlive::new()
         //TODO check for adequate interval time

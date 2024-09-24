@@ -23,6 +23,8 @@ impl IntoResponse for TlsCodecRejection {
             TlsCodecRejection::BytesError(error) => error.into_response(),
             TlsCodecRejection::DeserializationError(error) => {
                 tracing::trace!("Error during TLS codec deserialization: {:?}", error);
+                // This is most likely due to a malformed TLS codec body
+                // but there might be something I am missing reading the error descriptions of tls codec crate
                 StatusCode::BAD_REQUEST.into_response()
             }
         }
