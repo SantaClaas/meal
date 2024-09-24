@@ -10,6 +10,7 @@
     "wasm": "wasm-pack build ./rust"
   },
   "dependencies": {
+    "@solidjs/router": "^0.14.5",
     "solid-js": "^1.8.22"
   },
   "devDependencies": {
