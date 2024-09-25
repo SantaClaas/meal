@@ -2,19 +2,23 @@ import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import Onboarding from "../components/Onboarding";
 import { useAppContext } from "../components/AppContext";
 /**
- * @import { Signal, JSX } from "solid-js"
+ * @import { Signal, JSX, Accessor } from "solid-js"
+ * @import { State } from "../components/AppContext";}
  */
 
 export default function () {
-  const { app, initialize } = useAppContext();
+  const [state, {initialize}]= useAppContext();
 
-  const username = () => app()?.get_name();
   return (
     <>
-      <Show when={app()} fallback={<Onboarding setName={initialize} />}>
-        <p>welcome {username()}</p>
-        <a href="/invite">Invite</a>
-      </Show>
+     <Show when={state()} fallback={<Onboarding setName={initialize} />}>
+        {/** @type {(item: Accessor<State>) => JSX.Element } */(
+          (state) =>
+          (<>
+            <h1>Welcome {state().name}</h1>
+            <a href="/invite">Invite</a>
+          </>))}
+    </Show>
     </>
   );
 }

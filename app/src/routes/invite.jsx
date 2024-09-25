@@ -6,21 +6,21 @@ import { createSignal, Show } from "solid-js";
  */
 
 export default function Invite() {
-  const { app } = useAppContext();
+  const [currentState, { sendMessage }] = useAppContext();
   const navigate = useNavigate();
-  if (app() === undefined) {
+  if (currentState() === undefined) {
     return <Navigate href="/" />;
   }
 
   function getInvite() {
-    const state = app();
+    const state = currentState();
     if (state === undefined) {
       console.error("Expected state to be defined");
       navigate("/");
       return;
     }
 
-    const keyPackage = state.generate_key_package();
+    const keyPackage = state.app.generate_key_package();
     return keyPackage;
   }
   /** @type {Signal<string | undefined>} */
@@ -34,7 +34,7 @@ export default function Invite() {
    */
   function handleKeyInput(event) {
     event.preventDefault();
-    const state = app();
+    const state = currentState();
     if (state === undefined) {
       console.error("Expected state to be defined");
       navigate("/");
@@ -47,7 +47,7 @@ export default function Invite() {
     if (!value) return;
 
     // Create group to establish chat
-    const invite = state.establish_contact(value);
+    const invite = state.app.establish_contact(value);
     // Send welcome
     setWelcome(invite.welcome);
     setGroupId(invite.group_id);
@@ -68,7 +68,7 @@ export default function Invite() {
    */
   function handleWelcomeIn(event) {
     event.preventDefault();
-    const state = app();
+    const state = currentState();
     if (state === undefined) {
       console.error("Expected state to be defined");
       navigate("/");
@@ -81,20 +81,18 @@ export default function Invite() {
 
     if (!welcomeIn) return;
 
-    const groupId = state.join_group(welcomeIn);
+    const groupId = state.app.join_group(welcomeIn);
     console.debug("Joined group", groupId);
     setGroupId(groupId);
   }
 
-  /** @type {Signal<string|undefined>} */
-  const [messageOut, setMessageOut] = createSignal();
   /**
    * @param {Parameters<JSX.EventHandler<HTMLFormElement, SubmitEvent>>[0]} event
    */
-  function handleSendMessage(event) {
+  async function handleSendMessage(event) {
     event.preventDefault();
 
-    const state = app();
+    const state = currentState();
     if (state === undefined) {
       console.error("Expected state to be defined");
       navigate("/");
@@ -106,13 +104,17 @@ export default function Invite() {
 
     if (!groupId) return;
 
+    const to = /** @type {HTMLInputElement}*/ (event.currentTarget.to)
+          .value;
+
+    if (!to) return;
+
     const message = /** @type {HTMLInputElement}*/ (event.currentTarget.message)
       .value;
 
     if (!message) return;
 
-    const encodedMessage = state.send_message(groupId, message);
-    setMessageOut(encodedMessage);
+    await sendMessage(to, groupId, message)
   }
 
   /** @type {Signal<string|undefined>} */
@@ -123,7 +125,7 @@ export default function Invite() {
   function handleReceiveMessage(event) {
     event.preventDefault();
 
-    const state = app();
+    const state = currentState();
     if (state === undefined) {
       console.error("Expected state to be defined");
       navigate("/");
@@ -134,6 +136,7 @@ export default function Invite() {
       .value;
 
     console.debug("Group id", groupId);
+
     if (!groupId) return;
 
     const message = /** @type {HTMLInputElement}*/ (event.currentTarget.message)
@@ -141,7 +144,8 @@ export default function Invite() {
 
     if (!message) return;
 
-    const plainTextMessage = state.receive_message(groupId, message);
+
+    const plainTextMessage = state.app.receive_message(groupId, message);
     setMessageIn(plainTextMessage);
   }
 
@@ -173,29 +177,16 @@ export default function Invite() {
       <Show when={groupId()}>
         <form onSubmit={handleSendMessage}>
           <fieldset>
-            <input type="hidden" name="groupid" value={groupId()} />
             <legend>Send Message</legend>
+
+            <input type="hidden" name="groupid" value={groupId()} />
+              <label for="to">To</label>
+            <input type="text" id="to" name="to" required />
             <label for="message">Message</label>
             <input type="text" id="message" name="message" required />
           </fieldset>
           <button type="submit">Send</button>
         </form>
-
-        <form onSubmit={handleReceiveMessage}>
-          <fieldset>
-            <input type="hidden" name="groupid" value={groupId()} />
-            <legend>Receive Message</legend>
-            <label for="message">Message</label>
-            <input type="text" id="message" name="message" required />
-          </fieldset>
-          <button type="submit">Receive</button>
-        </form>
-      </Show>
-      <Show when={messageOut()}>
-        <h2>Message out</h2>
-        <pre>{messageOut()}</pre>
-
-        <button onClick={copy(messageOut)}>Copy</button>
       </Show>
       <Show when={messageIn()}>
         <h2>Received Message!</h2>

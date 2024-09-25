@@ -3,7 +3,11 @@
   "private": true,
   "version": "0.0.0",
   "description": "Trying out OpenMLS + Rust + WebAssembly + SolidStart",
-  "scripts": {},
+  "scripts": {
+    "wasm": "pnpm recursive run wasm",
+    "watch:server": "cargo watch -p delivery-service -x run",
+    "dev": "pnpm recursive run dev"
+  },
   "author": "claas <hello@claas.dev>",
   "license": "Apache-2.0",
   "workspaces": [

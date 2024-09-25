@@ -167,7 +167,7 @@ impl AppState {
         encoded
     }
 
-    pub fn send_message(&mut self, group_id: String, message: String) -> String {
+    pub fn send_message(&mut self, group_id: String, message: String) -> Box<[u8]> {
         let bytes = BASE64_URL_SAFE_NO_PAD.decode(group_id).unwrap();
         let id = GroupId::from_slice(&bytes);
         let group = self.groups.get_mut(&id).unwrap();
@@ -177,8 +177,7 @@ impl AppState {
             .unwrap();
 
         let serialized = message.tls_serialize_detached().unwrap();
-        let encoded = BASE64_URL_SAFE_NO_PAD.encode(serialized);
-        encoded
+        serialized.into()
     }
 
     pub fn receive_message(&mut self, group_id: String, message: String) -> String {
@@ -199,5 +198,33 @@ impl AppState {
         };
 
         String::from_utf8(message.into_bytes()).unwrap()
+    }
+
+    fn process_private_message(&mut self, message: PrivateMessageIn) -> String {
+        let message = ProtocolMessage::from(message);
+        let Some(group) = self.groups.get_mut(message.group_id()) else {
+            todo!("Group does not exist");
+        };
+
+        let Ok(message) = group.process_message(provider(), message) else {
+            todo!("Message processing error");
+        };
+
+        let ProcessedMessageContent::ApplicationMessage(content) = message.into_content() else {
+            todo!("Handle processed message content");
+        };
+
+        String::from_utf8(content.into_bytes()).unwrap()
+    }
+
+    pub fn process_message(&mut self, message: &[u8]) -> String {
+        let message = MlsMessageIn::tls_deserialize_exact_bytes(message).unwrap();
+        match message.extract() {
+            MlsMessageBodyIn::PrivateMessage(message) => self.process_private_message(message),
+            MlsMessageBodyIn::PublicMessage(public_message_in) => todo!("Public message in"),
+            MlsMessageBodyIn::Welcome(welcome) => todo!("Welcome message in"),
+            MlsMessageBodyIn::GroupInfo(verifiable_group_info) => todo!("Group info in"),
+            MlsMessageBodyIn::KeyPackage(key_package_in) => todo!("key package in"),
+        }
     }
 }

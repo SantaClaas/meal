@@ -82,15 +82,22 @@ async fn create_message(
 }
 
 async fn handle_socket(mut socket: WebSocket, mut receiver: mpsc::Receiver<Bytes>) {
+    tracing::debug!("Websocket established");
     // We only use the socket unidirectional for now
     while let Some(message) = receiver.recv().await {
         let message = ws::Message::Binary(message.into());
-        if let Err(result) = socket.send(message).await {
-            tracing::error!("Error sending message through websocket: {}", result)
+        if let Err(error) = socket.send(message).await {
+            tracing::error!("Error sending message through websocket: {}", error)
+            //TODO remove channel to avoid memory leak. It is the clients responsibility to reestablish a connection
         }
     }
 
-    tracing::debug!("Message stream closed")
+    tracing::debug!("Message stream closed");
+
+    // Try to close gracefully but if not ignore error
+    if let Err(error) = socket.close().await {
+        tracing::trace!("Error closing websocket: {}", error);
+    }
 }
 
 /// Handles requests for listening to server sent events (SSE) that are used to send incoming messages from the server to the client
@@ -104,6 +111,7 @@ async fn subscribe_messages(
 
     //TODO decide on buffer size
     let (sender, receiver) = mpsc::channel(8);
+
     // Register sender for this id
     let previous_sender = state.channels.lock().await.insert(client_id, sender);
     if let Some(previous_sender) = previous_sender {
