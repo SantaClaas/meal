@@ -140,6 +140,38 @@ impl AppState {
         self.groups.insert(group.group_id().clone(), group);
         encoded
     }
+    /// Creates a group using the package decoded in when reading the invite
+    /// Returns the serialized welcome message
+    pub fn create_group(&mut self, package: DecodedPackage) -> Vec<u8> {
+        let package = package.key_package;
+        let provider = provider();
+        let mut group = MlsGroup::builder()
+            .use_ratchet_tree_extension(true)
+            .build(
+                provider,
+                &self.user.signature_key,
+                self.user.credential.clone(),
+            )
+            .unwrap();
+
+        // We don't need the out message bedcause there is no other group members
+        // that need to be "informed" of the change (the commit message)
+        let (_out_message, welcome, _group_info) = group
+            .add_members(provider, &self.user.signature_key, &[package])
+            .unwrap();
+
+        // Process it on our end
+        group.merge_pending_commit(provider).unwrap();
+
+        let group_id = group.group_id().clone();
+        if self.groups.contains_key(&group_id) {
+            todo!("Group already exists");
+        }
+
+        self.groups.insert(group_id.clone(), group);
+
+        welcome.tls_serialize_detached().unwrap()
+    }
 
     pub fn send_message(&mut self, group_id: String, message: String) -> Box<[u8]> {
         let bytes = BASE64_URL_SAFE_NO_PAD.decode(group_id).unwrap();
@@ -223,31 +255,4 @@ pub fn decode_key_package(encoded: &str) -> DecodedPackage {
         friend_name: id,
         key_package: validated,
     }
-
-    // let mut group = MlsGroup::builder()
-    //     .use_ratchet_tree_extension(true)
-    //     .build(
-    //         provider,
-    //         &self.user.signature_key,
-    //         self.user.credential.clone(),
-    //     )
-    //     .unwrap();
-
-    // // We don't need the out message bedcause there is no other group members
-    // // that need to be "informed" of the change (the commit message)
-    // let (_out_message, welcome, _group_info) = group
-    //     .add_members(provider, &self.user.signature_key, &[validated])
-    //     .unwrap();
-
-    // // Process it on our end
-    // group.merge_pending_commit(provider).unwrap();
-
-    // let group_id = group.group_id().clone();
-    // if self.groups.contains_key(&group_id) {
-    //     todo!("Group already exists");
-    // }
-
-    // self.groups.insert(group_id.clone(), group);
-
-    // todo!()
 }

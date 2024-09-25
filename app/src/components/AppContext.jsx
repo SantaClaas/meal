@@ -1,4 +1,9 @@
-import { createContext, createEffect, createSignal, useContext } from "solid-js";
+import {
+  createContext,
+  createEffect,
+  createSignal,
+  useContext,
+} from "solid-js";
 //TODO register rust wasm pack package as package in workspace
 import { AppState } from "../../../core/pkg";
 
@@ -7,18 +12,18 @@ import { AppState } from "../../../core/pkg";
  * @typedef {{name: string, app: AppState}} State
  */
 
- /** @type {Signal<State | undefined>} */
+/** @type {Signal<State | undefined>} */
 const [currentState, setState] = createSignal();
 
 /**
-* @param {MessageEvent} event
-*/
-function receiveMessage(event){
+ * @param {MessageEvent} event
+ */
+function receiveMessage(event) {
   console.debug("Received message", event.data, currentState());
 
   if (!(event.data instanceof ArrayBuffer)) {
-      console.error("Expected websocket data to be binary");
-      return;
+    console.error("Expected websocket data to be binary");
+    return;
   }
 
   const state = currentState();
@@ -35,25 +40,24 @@ createEffect(() => {
   if (state === undefined) return;
 
   //TODO ensure secure connection (WSS/HTTPS) in production
-  const socket = new WebSocket(`ws://127.0.0.1:3000/messages/${state.name}`)
+  const socket = new WebSocket(`ws://127.0.0.1:3000/messages/${state.name}`);
   socket.binaryType = "arraybuffer";
   socket.addEventListener("message", receiveMessage);
 
   socket.addEventListener("close", (event) => {
     console.warn("Socket closed. Not implemented.", event);
-  })
-
+  });
 });
 
 /**
-*
-* @param {string} to
-* @param {string} groupId
-* @param {string} message
-*/
+ *
+ * @param {string} to
+ * @param {string} groupId
+ * @param {string} message
+ */
 async function sendMessage(to, groupId, message) {
   const state = currentState();
-  if (state === undefined){
+  if (state === undefined) {
     console.error("Need statet to be defined to send message");
     return;
   }
@@ -71,14 +75,15 @@ async function sendMessage(to, groupId, message) {
 
 /**
  * @param {string} name
+ * @returns {NonNullable<ReturnType<typeof setState>>}
  */
 function initialize(name) {
   const app = new AppState(name);
 
-  setState( {
+  return setState({
     name,
     app,
-  })
+  });
 }
 
 const accessors = { initialize, sendMessage };
