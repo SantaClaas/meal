@@ -1,19 +1,17 @@
-use std::{collections::HashMap, convert::Infallible, sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc};
 
 use axum::{
-    extract::{Path, State},
-    http::{HeaderValue, Method, StatusCode},
-    response::{
-        sse::{Event, KeepAlive},
-        IntoResponse, Sse,
+    body::Bytes,
+    extract::{
+        ws::{self, WebSocket},
+        Path, State, WebSocketUpgrade,
     },
+    http::{HeaderValue, Method, StatusCode},
+    response::IntoResponse,
     routing::{get, post},
     Router,
 };
-use extractor::TlsCodec;
-use openmls::prelude::MlsMessageIn;
 use tokio::sync::{mpsc, Mutex};
-use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tower_http::cors::CorsLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -21,7 +19,7 @@ mod extractor;
 
 #[derive(Clone, Default)]
 struct AppState {
-    channels: Arc<Mutex<HashMap<Arc<str>, mpsc::Sender<MlsMessageIn>>>>,
+    channels: Arc<Mutex<HashMap<Arc<str>, mpsc::Sender<Bytes>>>>,
 }
 
 #[tokio::main]
@@ -54,7 +52,10 @@ async fn main() {
 
     let app = app.with_state(Default::default());
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    // let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
+        .await
+        .unwrap();
 
     tracing::debug!("listening on {}", listener.local_addr().unwrap());
     axum::serve(listener, app).await.unwrap();
@@ -64,7 +65,7 @@ async fn main() {
 async fn create_message(
     State(state): State<AppState>,
     Path(to): Path<Arc<str>>,
-    TlsCodec(message): TlsCodec<MlsMessageIn>,
+    bytes: Bytes,
 ) -> impl IntoResponse {
     let channels = state.channels.lock().await;
     //TODO think about not leaking if they exist or not
@@ -73,18 +74,31 @@ async fn create_message(
         return StatusCode::NOT_FOUND;
     };
 
-    if let Err(error) = sender.send(message).await {
+    if let Err(error) = sender.send(bytes).await {
         tracing::error!("Error sending message {:?}", error);
     }
 
     StatusCode::CREATED
 }
 
+async fn handle_socket(mut socket: WebSocket, mut receiver: mpsc::Receiver<Bytes>) {
+    // We only use the socket unidirectional for now
+    while let Some(message) = receiver.recv().await {
+        let message = ws::Message::Binary(message.into());
+        if let Err(result) = socket.send(message).await {
+            tracing::error!("Error sending message through websocket: {}", result)
+        }
+    }
+
+    tracing::debug!("Message stream closed")
+}
+
 /// Handles requests for listening to server sent events (SSE) that are used to send incoming messages from the server to the client
 async fn subscribe_messages(
     State(state): State<AppState>,
+    websocket: WebSocketUpgrade,
     Path(client_id): Path<Arc<str>>,
-) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
+) -> impl IntoResponse {
     //TODO add cryptographic client authentication to avoid session hijacking
     //TODO (continued) (even though the hijacker can't read the messages most likely, they can analyze traffic meta data for that client)
 
@@ -100,13 +114,6 @@ async fn subscribe_messages(
         drop(previous_sender);
     }
 
-    let stream = ReceiverStream::new(receiver).map(|_value| Ok(Event::default()));
-
-    let keep_alive = KeepAlive::new()
-        //TODO check for adequate interval time
-        .interval(Duration::from_secs(1))
-        //TODO think of something a bit more clever
-        .text("keep-alive-text");
-
-    Sse::new(stream).keep_alive(keep_alive)
+    //TODO keep alive
+    websocket.on_upgrade(|socket| handle_socket(socket, receiver))
 }
