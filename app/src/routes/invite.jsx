@@ -12,7 +12,7 @@ export default function Invite() {
     return <Navigate href="/" />;
   }
 
-  function getInvite() {
+  function getInviteUrl() {
     const state = currentState();
     if (state === undefined) {
       console.error("Expected state to be defined");
@@ -20,8 +20,8 @@ export default function Invite() {
       return;
     }
 
-    const keyPackage = state.app.generate_key_package();
-    return keyPackage;
+    const encodedPackage =  state.app.create_key_package();
+    return new URL(`/join/${encodedPackage}`, location.origin);
   }
   /** @type {Signal<string | undefined>} */
   const [welcome, setWelcome] = createSignal();
@@ -117,42 +117,32 @@ export default function Invite() {
     await sendMessage(to, groupId, message)
   }
 
-  /** @type {Signal<string|undefined>} */
-  const [messageIn, setMessageIn] = createSignal();
-  /**
-   * @param {Parameters<JSX.EventHandler<HTMLFormElement, SubmitEvent>>[0]} event
-   */
-  function handleReceiveMessage(event) {
-    event.preventDefault();
-
+  async function shareInvite(){
     const state = currentState();
-    if (state === undefined) {
-      console.error("Expected state to be defined");
-      navigate("/");
+    if (state === undefined) return;
+
+    const inviteUrl = getInviteUrl();
+    if (!inviteUrl) return;
+
+    /** @type {ShareData} */
+    const data = {
+      title: "Join me on melt",
+      //TODO generate QR code
+      text: "\nScan the QR code or follow the link to chat with me on melt",
+      url: inviteUrl.href,
+    };
+    if (!navigator.canShare(data)){
+      console.debug("Can not share", data);
       return;
     }
 
-    const groupId = /** @type {HTMLInputElement}*/ (event.currentTarget.groupid)
-      .value;
-
-    console.debug("Group id", groupId);
-
-    if (!groupId) return;
-
-    const message = /** @type {HTMLInputElement}*/ (event.currentTarget.message)
-      .value;
-
-    if (!message) return;
-
-
-    const plainTextMessage = state.app.receive_message(groupId, message);
-    setMessageIn(plainTextMessage);
+   await navigator.share(data);
   }
-
   return (
     <>
       <h1>Invite to chat</h1>
-      <button onClick={copy(getInvite)}>Copy Invite</button>
+      <button onClick={copy(() => getInviteUrl()?.href)}>Copy Invite</button>
+      <button onClick={shareInvite}>Share Invite</button>
       <form onSubmit={handleKeyInput}>
         <fieldset>
           <legend>Key Package in</legend>
@@ -187,10 +177,6 @@ export default function Invite() {
           </fieldset>
           <button type="submit">Send</button>
         </form>
-      </Show>
-      <Show when={messageIn()}>
-        <h2>Received Message!</h2>
-        <p>{messageIn()}</p>
       </Show>
     </>
   );

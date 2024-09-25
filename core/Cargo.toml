@@ -13,13 +13,6 @@ openmls = { version = "0.6.0", features = ["js"] }
 openmls_basic_credential = "0.3.0"
 openmls_rust_crypto = "0.3.0"
 openmls_traits = "0.3.0"
-# getrandom = { version = "0.2.15", features = ["js", "wasm-bindgen"] }
-# openmls = { git = "https://github.com/openmls/openmls", branch = "main", features = [
-#     "js",
-# ] }
-# openmls_basic_credential = { git = "https://github.com/openmls/openmls", branch = "main" }
-# openmls_rust_crypto = { git = "https://github.com/openmls/openmls", branch = "main" }
-# openmls_traits = { git = "https://github.com/openmls/openmls", branch = "main" }
 thiserror = "1.0.61"
 wasm-bindgen = "0.2.92"
 wasm-bindgen-futures = "0.4.42"

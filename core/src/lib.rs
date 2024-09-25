@@ -81,7 +81,11 @@ impl AppState {
         self.user.name.clone().into()
     }
 
-    pub fn generate_key_package(&mut self) -> String {
+    pub fn create_key_package(&mut self) -> String {
+        //TODO think about ways to reduce size of key package to generate smaller invite links
+        //TODO like using a non self describing serialization format and remove
+        //TODO and remove things that do not change or where we use a default
+        //TODO adding postcard as dependency yields 9-10% smaller serialized + base64 encoded key packages
         let bundle = KeyPackage::builder()
             .build(
                 CIPHERSUITE,
@@ -94,8 +98,7 @@ impl AppState {
         self.key_packages.push(bundle.key_package().clone());
 
         let data = bundle.key_package().tls_serialize_detached().unwrap();
-        let base64 = BASE64_URL_SAFE_NO_PAD.encode(data);
-        base64
+        BASE64_URL_SAFE_NO_PAD.encode(data)
     }
 
     pub fn establish_contact(&mut self, encoded_package: String) -> Invite {
