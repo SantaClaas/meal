@@ -6,13 +6,14 @@ import { createSignal, Show } from "solid-js";
  */
 
 export default function Invite() {
-  const [currentState, { sendMessage }] = useAppContext();
+  const [currentState] = useAppContext();
   const navigate = useNavigate();
   if (currentState() === undefined) {
     return <Navigate href="/" />;
   }
 
-  function getInviteUrl() {
+  /** @param {string|undefined} name */
+  function createInviteUrl(name) {
     const state = currentState();
     if (state === undefined) {
       console.error("Expected state to be defined");
@@ -20,76 +21,29 @@ export default function Invite() {
       return;
     }
 
-    const encodedPackage =  state.app.create_key_package();
-    return new URL(`/join/${encodedPackage}`, location.origin);
-  }
-  /** @type {Signal<string | undefined>} */
-  const [welcome, setWelcome] = createSignal();
-
-  /** @type {Signal<string|undefined>} */
-  const [groupId, setGroupId] = createSignal();
-
-  /**
-   * @param {Parameters<JSX.EventHandler<HTMLFormElement, SubmitEvent>>[0]} event
-   */
-  function handleKeyInput(event) {
-    event.preventDefault();
-    const state = currentState();
-    if (state === undefined) {
-      console.error("Expected state to be defined");
-      navigate("/");
-      return;
-    }
-
-    /** @type {HTMLInputElement} */
-    const input = event.currentTarget.keypackage;
-    const value = input.value;
-    if (!value) return;
-
-    // Create group to establish chat
-    const invite = state.app.establish_contact(value);
-    // Send welcome
-    setWelcome(invite.welcome);
-    setGroupId(invite.group_id);
-  }
-
-  /** @param {Accessor<string|undefined>} get */
-  function copy(get) {
-    return () => {
-      const value = get();
-      if (!(value && typeof value === "string")) return;
-
-      navigator.clipboard.writeText(value);
-    };
+    const encodedInvite = state.app.create_invite(name);
+    return new URL(`/join/${encodedInvite}`, location.origin);
   }
 
   /**
-   * @param {Parameters<JSX.EventHandler<HTMLFormElement, SubmitEvent>>[0]} event
+   * @param {string} [url]
+   * @returns {ShareData}
    */
-  function handleWelcomeIn(event) {
-    event.preventDefault();
-    const state = currentState();
-    if (state === undefined) {
-      console.error("Expected state to be defined");
-      navigate("/");
-      return;
-    }
+  const shareTemplate = (url) => ({
+    title: "Join me on melt",
+    //TODO generate QR code
+    text: "\nScan the QR code or follow the link to chat with me on melt",
+    url,
+  });
 
-    const welcomeIn = /** @type {HTMLInputElement}*/ (
-      event.currentTarget.welcome
-    ).value;
+  // Progressively enhance the invite form
+  const isShareEnabled =
+    "share" in navigator &&
+    "canShare" in navigator &&
+    navigator.canShare(shareTemplate());
 
-    if (!welcomeIn) return;
-
-    const groupId = state.app.join_group(welcomeIn);
-    console.debug("Joined group", groupId);
-    setGroupId(groupId);
-  }
-
-  /**
-   * @param {Parameters<JSX.EventHandler<HTMLFormElement, SubmitEvent>>[0]} event
-   */
-  async function handleSendMessage(event) {
+  /** @param {Parameters<JSX.EventHandler<HTMLFormElement, SubmitEvent>>[0]} event*/
+  async function handleShare(event) {
     event.preventDefault();
 
     const state = currentState();
@@ -99,85 +53,91 @@ export default function Invite() {
       return;
     }
 
-    const groupId = /** @type {HTMLInputElement}*/ (event.currentTarget.groupid)
-      .value;
+    // This should be a switch expression
+    /** @type {"share"|"copy"} */
+    let shareMedium;
+    switch (event.submitter) {
+      case event.currentTarget.share:
+        shareMedium = "share";
+        break;
+      case event.currentTarget.copy:
+        shareMedium = "copy";
+        break;
+      default:
+        console.error("Unexpected submitter", event.submitter);
+        return;
+    }
 
-    if (!groupId) return;
+    const isNameIncluded = /** @type {HTMLInputElement} */ (
+      event.currentTarget.includename
+    ).checked;
 
-    const to = /** @type {HTMLInputElement}*/ (event.currentTarget.to)
-          .value;
+    let name = undefined;
+    // const shareMedium = "share" in event.currentTarget ;
+    if (isNameIncluded) {
+      // Types get confused when the input name is "name"
+      name = /** @type {HTMLInputElement} */ (event.currentTarget.displayname)
+        .value;
+    }
 
-    if (!to) return;
-
-    const message = /** @type {HTMLInputElement}*/ (event.currentTarget.message)
-      .value;
-
-    if (!message) return;
-
-    await sendMessage(to, groupId, message)
-  }
-
-  async function shareInvite(){
-    const state = currentState();
-    if (state === undefined) return;
-
-    const inviteUrl = getInviteUrl();
+    const inviteUrl = createInviteUrl(name);
     if (!inviteUrl) return;
 
-    /** @type {ShareData} */
-    const data = {
-      title: "Join me on melt",
-      //TODO generate QR code
-      text: "\nScan the QR code or follow the link to chat with me on melt",
-      url: inviteUrl.href,
-    };
-    if (!navigator.canShare(data)){
-      console.debug("Can not share", data);
+    if (shareMedium === "share" && isShareEnabled) {
+      //TODO error handling as we expect at this point that share works
+      await navigator.share(shareTemplate(inviteUrl.href));
       return;
     }
 
-   await navigator.share(data);
+    // Fall back to copy
+
+    //TODO show toast to show user that a copy was made
+    navigator.clipboard.writeText(inviteUrl.href);
   }
+
   return (
     <>
       <h1>Invite to chat</h1>
-      <button onClick={copy(() => getInviteUrl()?.href)}>Copy Invite</button>
-      <button onClick={shareInvite}>Share Invite</button>
-      <form onSubmit={handleKeyInput}>
-        <fieldset>
-          <legend>Key Package in</legend>
-          <label for="keypackage">Key Package</label>
-          <input type="text" name="keypackage" id="keypackage" required />
-        </fieldset>
-        <button>Submit</button>
-      </form>
-      <form onSubmit={handleWelcomeIn}>
-        <fieldset>
-          <legend>Welcome in</legend>
-          <label for="welcome">Welcome</label>
-          <input type="text" name="welcome" id="welcome" required />
-        </fieldset>
-        <button>Submit</button>
-      </form>
-      <Show when={welcome()}>
-        <h2>Welcome to send to partner</h2>
-        <pre>{welcome()}</pre>
-        <button onClick={copy(welcome)}>Copy</button>
-      </Show>
-      <Show when={groupId()}>
-        <form onSubmit={handleSendMessage}>
+      <form onSubmit={handleShare}>
+        <details>
+          <summary>Advanced</summary>
           <fieldset>
-            <legend>Send Message</legend>
-
-            <input type="hidden" name="groupid" value={groupId()} />
-              <label for="to">To</label>
-            <input type="text" id="to" name="to" required />
-            <label for="message">Message</label>
-            <input type="text" id="message" name="message" required />
+            <legend>Name</legend>
+            <input
+              type="checkbox"
+              id="includename"
+              name="includename"
+              checked
+              required
+            />
+            <label for="includename">Include in invite</label>
+            {/* TODO disable in css when show name is not checked */}
+            <label for="displayname">Display name</label>
+            <input
+              type="text"
+              name="displayname"
+              id="displayname"
+              required
+              value={currentState()?.name}
+            />
           </fieldset>
-          <button type="submit">Send</button>
-        </form>
-      </Show>
+          {/* TODO wire up */}
+          {/* This setting is to reduce the steps needed to establish a new chat but might be uncomfortable for some users */}
+          <input type="checkbox" name="accept" id="accept" />
+          <label for="accept">
+            Automatically accept requests from this invite
+          </label>
+        </details>
+        {/* <a href="whatsapp://send?text=Join me on melt">Whatsapp</a> */}
+        <button type="submit" name="copy">
+          Copy
+        </button>
+        <Show when={isShareEnabled}>
+          <button type="submit" name="share">
+            Share
+          </button>
+        </Show>
+      </form>
     </>
   );
 }

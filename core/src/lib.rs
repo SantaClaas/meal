@@ -1,3 +1,4 @@
+use core::str;
 use std::{collections::HashMap, rc::Rc, sync::OnceLock};
 
 use base64::prelude::*;
@@ -41,9 +42,9 @@ pub struct AppState {
 }
 
 #[wasm_bindgen(getter_with_clone)]
-pub struct Invite {
-    pub group_id: String,
-    pub welcome: String,
+pub struct DecodedPackage {
+    pub friend_name: Option<String>,
+    key_package: KeyPackage,
 }
 
 #[wasm_bindgen]
@@ -81,12 +82,25 @@ impl AppState {
         self.user.name.clone().into()
     }
 
-    pub fn create_key_package(&mut self) -> String {
+    /// name is name to show on the invite. Does not have to be the same as the name of the user
+    pub fn create_invite(&mut self, name: Option<String>) -> String {
         //TODO think about ways to reduce size of key package to generate smaller invite links
         //TODO like using a non self describing serialization format and remove
         //TODO and remove things that do not change or where we use a default
         //TODO adding postcard as dependency yields 9-10% smaller serialized + base64 encoded key packages
-        let bundle = KeyPackage::builder()
+
+        // Add identifier to help users identify the origin of the key package / invitation
+        // Details: https://www.rfc-editor.org/rfc/rfc9420.html#section-5.3.3
+        let builder = KeyPackage::builder();
+
+        let builder = if let Some(name) = name {
+            let id = ApplicationIdExtension::new(name.as_bytes());
+            builder.key_package_extensions(Extensions::single(Extension::ApplicationId(id)))
+        } else {
+            builder
+        };
+
+        let bundle = builder
             .build(
                 CIPHERSUITE,
                 provider(),
@@ -99,49 +113,6 @@ impl AppState {
 
         let data = bundle.key_package().tls_serialize_detached().unwrap();
         BASE64_URL_SAFE_NO_PAD.encode(data)
-    }
-
-    pub fn establish_contact(&mut self, encoded_package: String) -> Invite {
-        // Decode and verify package from other person
-        let data = BASE64_URL_SAFE_NO_PAD.decode(encoded_package).unwrap();
-        let package = KeyPackageIn::tls_deserialize_exact_bytes(&data).unwrap();
-        let provider = provider();
-        let package = package
-            .validate(provider.crypto(), ProtocolVersion::Mls10)
-            .unwrap();
-
-        // Create group that is the one to one chat
-        let mut group = MlsGroup::builder()
-            .use_ratchet_tree_extension(true)
-            .build(
-                provider,
-                &self.user.signature_key,
-                self.user.credential.clone(),
-            )
-            .unwrap();
-
-        let (_out_message, welcome, _group_info) = group
-            .add_members(provider, &self.user.signature_key, &[package])
-            .unwrap();
-
-        // Don't need to send the mls commit message
-        // because there are no other group members
-
-        // Process the message
-        group.merge_pending_commit(provider).unwrap();
-        // Group id to receive messages
-        let group_id = group.group_id().clone();
-        self.groups.insert(group_id.clone(), group);
-
-        let group_id = BASE64_URL_SAFE_NO_PAD.encode(group_id.as_slice());
-
-        // Send welcome
-        let data = welcome.tls_serialize_detached().unwrap();
-        let encoded = BASE64_URL_SAFE_NO_PAD.encode(data);
-        Invite {
-            group_id,
-            welcome: encoded,
-        }
     }
 
     //TODO use Box<[u8]> as return type to get Uint8Array in JS
@@ -230,4 +201,53 @@ impl AppState {
             MlsMessageBodyIn::KeyPackage(key_package_in) => todo!("key package in"),
         }
     }
+}
+
+#[wasm_bindgen]
+pub fn decode_key_package(encoded: &str) -> DecodedPackage {
+    let data = BASE64_URL_SAFE_NO_PAD.decode(encoded).unwrap();
+    let package = KeyPackageIn::tls_deserialize_exact_bytes(&data).unwrap();
+    let provider = provider();
+
+    let validated = package
+        .validate(provider.crypto(), ProtocolVersion::Mls10)
+        .unwrap();
+
+    let id = validated.extensions().application_id().map(|id| {
+        str::from_utf8(id.as_slice())
+            .unwrap_or_else(|_| todo!("Handle id not utf8"))
+            .to_owned()
+    });
+
+    DecodedPackage {
+        friend_name: id,
+        key_package: validated,
+    }
+
+    // let mut group = MlsGroup::builder()
+    //     .use_ratchet_tree_extension(true)
+    //     .build(
+    //         provider,
+    //         &self.user.signature_key,
+    //         self.user.credential.clone(),
+    //     )
+    //     .unwrap();
+
+    // // We don't need the out message bedcause there is no other group members
+    // // that need to be "informed" of the change (the commit message)
+    // let (_out_message, welcome, _group_info) = group
+    //     .add_members(provider, &self.user.signature_key, &[validated])
+    //     .unwrap();
+
+    // // Process it on our end
+    // group.merge_pending_commit(provider).unwrap();
+
+    // let group_id = group.group_id().clone();
+    // if self.groups.contains_key(&group_id) {
+    //     todo!("Group already exists");
+    // }
+
+    // self.groups.insert(group_id.clone(), group);
+
+    // todo!()
 }
