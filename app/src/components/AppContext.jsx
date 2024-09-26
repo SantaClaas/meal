@@ -8,46 +8,19 @@ import {
 import { AppState } from "../../../core/pkg";
 
 /**
- * @import { ParentProps, Context, Signal } from "solid-js";
- * @typedef {{name: string, app: AppState}} State
+ * @import { ParentProps, Context, Signal, Accessor } from "solid-js";
+ * @typedef {{name: string, app: AppState, groups: Accessor<string[]>}} State
  */
+
+const [groups, setGroups] = createSignal(/** @type {string[]} */ ([]));
 
 /** @type {Signal<State | undefined>} */
 const [currentState, setState] = createSignal();
 
 /**
- * @param {MessageEvent} event
+ * TODO these need to be derivated from the rust types which should be automated
+ * @typedef { {Welcome: { group_id: string}} | {Private: {group_id: string, message: string}} } Message
  */
-function receiveMessage(event) {
-  console.debug("Received message", event.data, currentState());
-
-  if (!(event.data instanceof ArrayBuffer)) {
-    console.error("Expected websocket data to be binary");
-    return;
-  }
-
-  const state = currentState();
-  if (state === undefined) return;
-
-  console.debug("Processing message");
-  const message = state.app.process_message(new Uint8Array(event.data));
-  console.debug("Processed message", message);
-}
-
-//TODO close socket when app state changes
-createEffect(() => {
-  const state = currentState();
-  if (state === undefined) return;
-
-  //TODO ensure secure connection (WSS/HTTPS) in production
-  const socket = new WebSocket(`ws://127.0.0.1:3000/messages/${state.name}`);
-  socket.binaryType = "arraybuffer";
-  socket.addEventListener("message", receiveMessage);
-
-  socket.addEventListener("close", (event) => {
-    console.warn("Socket closed. Not implemented.", event);
-  });
-});
 
 /**
  *
@@ -81,6 +54,7 @@ function initialize(name) {
   const app = new AppState(name);
 
   return setState({
+    groups,
     name,
     app,
   });
@@ -105,6 +79,61 @@ export function AppContextProvider(properties) {
     </AppContext.Provider>
   );
 }
-export function useAppContext() {
-  return useContext(AppContext);
+/**
+ *
+ * @param {(groupId: string) => void} [onWelcomeIn]
+ * @returns {typeof state}
+ */
+export function useAppContext(onWelcomeIn) {
+  const [currentState, ...accessors] = useContext(AppContext);
+  /**
+   * @param {MessageEvent} event
+   */
+  function receiveMessage(event) {
+    console.debug("Received message", event.data, currentState());
+
+    if (!(event.data instanceof ArrayBuffer)) {
+      console.error("Expected websocket data to be binary");
+      return;
+    }
+
+    const state = currentState();
+    if (state === undefined) return;
+
+    console.debug("Processing message");
+    const message = /** @type {Message} */ (
+      state.app.process_message(new Uint8Array(event.data))
+    );
+    console.debug("Processed message", message);
+    if ("Welcome" in message) {
+      setGroups((groups) => [...groups, message.Welcome.group_id]);
+      onWelcomeIn?.(message.Welcome.group_id);
+      return;
+    }
+
+    if ("Private" in message) {
+      console.debug(
+        "Received message",
+        message.Private.group_id,
+        message.Private.message
+      );
+    }
+  }
+
+  //TODO close socket when app state changes
+  createEffect(() => {
+    const state = currentState();
+    if (state === undefined) return;
+
+    //TODO ensure secure connection (WSS/HTTPS) in production
+    const socket = new WebSocket(`ws://127.0.0.1:3000/messages/${state.name}`);
+    socket.binaryType = "arraybuffer";
+    socket.addEventListener("message", receiveMessage);
+
+    socket.addEventListener("close", (event) => {
+      console.warn("Socket closed. Not implemented.", event);
+    });
+  });
+
+  return [currentState, ...accessors];
 }

@@ -1,13 +1,24 @@
 import { Navigate, useNavigate } from "@solidjs/router";
 import { useAppContext } from "../components/AppContext";
-import { createSignal, Show } from "solid-js";
+import { createEffect, createSignal, Show } from "solid-js";
 /**
  * @import { JSX, Signal, Accessor } from "solid-js";
  */
 
 export default function Invite() {
-  const [currentState] = useAppContext();
   const navigate = useNavigate();
+
+  /**
+   * Go to chat when invite is accepted (welcome for the keypackage comes in)
+   * @param {string} groupId
+   */
+  function handleWelcomeIn(groupId) {
+    //TODO check if user has automatic accept enabled
+    //TODO check if this welcome is for this key package
+    navigate(`/chat/${groupId}`);
+  }
+
+  const [currentState] = useAppContext(handleWelcomeIn);
   if (currentState() === undefined) {
     return <Navigate href="/" />;
   }

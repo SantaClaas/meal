@@ -1,5 +1,5 @@
 use core::str;
-use std::{collections::HashMap, rc::Rc, sync::OnceLock};
+use std::{collections::HashMap, sync::OnceLock};
 
 use base64::prelude::*;
 use openmls::prelude::*;
@@ -15,16 +15,6 @@ pub(crate) const CIPHERSUITE: Ciphersuite =
 fn provider() -> &'static impl OpenMlsProvider {
     static INSTANCE: OnceLock<OpenMlsRustCrypto> = OnceLock::new();
     INSTANCE.get_or_init(OpenMlsRustCrypto::default)
-}
-
-/// Wrappers to make use with wasm bindgen easier
-mod wrapper {
-    use super::*;
-    #[wasm_bindgen]
-    pub struct GroupId(pub(super) openmls::group::GroupId);
-
-    #[wasm_bindgen]
-    pub struct KeyPackage(pub(super) openmls::key_packages::KeyPackage);
 }
 
 struct User {
@@ -45,6 +35,12 @@ pub struct AppState {
 pub struct DecodedPackage {
     pub friend_name: Option<String>,
     key_package: KeyPackage,
+}
+
+#[derive(serde::Serialize)]
+pub enum Message {
+    Private { group_id: String, message: String },
+    Welcome { group_id: String },
 }
 
 #[wasm_bindgen]
@@ -158,8 +154,8 @@ impl AppState {
             todo!("Group id collision that should not happen if group id is random");
         }
 
-        let js_group_id = BASE64_URL_SAFE_NO_PAD.encode(group_id.as_slice());
         // Need to create id before moving group into map
+        let js_group_id = BASE64_URL_SAFE_NO_PAD.encode(group_id.as_slice());
         self.groups.insert(group_id.clone(), group);
         js_group_id
     }
@@ -223,7 +219,7 @@ impl AppState {
         String::from_utf8(message.into_bytes()).unwrap()
     }
 
-    fn process_private_message(&mut self, message: PrivateMessageIn) -> String {
+    fn process_private_message(&mut self, message: PrivateMessageIn) -> Message {
         let message = ProtocolMessage::from(message);
         let Some(group) = self.groups.get_mut(message.group_id()) else {
             todo!("Group does not exist");
@@ -237,18 +233,49 @@ impl AppState {
             todo!("Handle processed message content");
         };
 
-        String::from_utf8(content.into_bytes()).unwrap()
+        let message = String::from_utf8(content.into_bytes()).unwrap();
+        let js_group_id = BASE64_URL_SAFE_NO_PAD.encode(group.group_id().as_slice());
+
+        Message::Private {
+            group_id: js_group_id,
+            message,
+        }
     }
 
-    pub fn process_message(&mut self, message: &[u8]) -> String {
-        let message = MlsMessageIn::tls_deserialize_exact_bytes(message).unwrap();
-        match message.extract() {
-            MlsMessageBodyIn::PrivateMessage(message) => self.process_private_message(message),
-            MlsMessageBodyIn::PublicMessage(public_message_in) => todo!("Public message in"),
-            MlsMessageBodyIn::Welcome(welcome) => todo!("Welcome message in"),
-            MlsMessageBodyIn::GroupInfo(verifiable_group_info) => todo!("Group info in"),
-            MlsMessageBodyIn::KeyPackage(key_package_in) => todo!("key package in"),
+    fn process_welcome(&mut self, welcome: Welcome) -> Message {
+        let provider = provider();
+        let configuration = MlsGroupJoinConfig::builder()
+            .use_ratchet_tree_extension(true)
+            .build();
+
+        let staged =
+            StagedWelcome::new_from_welcome(provider, &configuration, welcome, None).unwrap();
+
+        let group = staged.into_group(provider).unwrap();
+
+        let group_id = group.group_id();
+        // Need to create id before moving group into map
+        let js_group_id = BASE64_URL_SAFE_NO_PAD.encode(group_id.as_slice());
+
+        // self.groups.insert(group_id.clone(), group);
+        // js_group_id
+        Message::Welcome {
+            group_id: js_group_id,
         }
+    }
+
+    pub fn process_message(&mut self, message: &[u8]) -> JsValue {
+        let message = MlsMessageIn::tls_deserialize_exact_bytes(message).unwrap();
+
+        let value = match message.extract() {
+            MlsMessageBodyIn::PrivateMessage(message) => self.process_private_message(message),
+            MlsMessageBodyIn::Welcome(welcome) => self.process_welcome(welcome),
+            MlsMessageBodyIn::PublicMessage(_public_message_in) => todo!("Public message in"),
+            MlsMessageBodyIn::GroupInfo(_verifiable_group_info) => todo!("Group info in"),
+            MlsMessageBodyIn::KeyPackage(_key_package_in) => todo!("key package in"),
+        };
+
+        serde_wasm_bindgen::to_value(&value).unwrap()
     }
 }
 
