@@ -54,6 +54,10 @@ export default function Join() {
       `http://127.0.0.1:3000/messages/${friendName}`,
       {
         method: "post",
+        headers: {
+          //https://www.rfc-editor.org/rfc/rfc9420.html#name-the-message-mls-media-type
+          "Content-Type": "message/mls",
+        },
         body: welcomePackage,
       }
     );

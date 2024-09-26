@@ -39,6 +39,10 @@ async function sendMessage(to, groupId, message) {
   //TODO error handling
   //TODO retry
   const response = await fetch(`http://127.0.0.1:3000/messages/${to}`, {
+    headers: {
+      //https://www.rfc-editor.org/rfc/rfc9420.html#name-the-message-mls-media-type
+      "Content-Type": "message/mls",
+    },
     method: "post",
     body,
   });
