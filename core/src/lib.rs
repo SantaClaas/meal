@@ -140,12 +140,10 @@ impl AppState {
         self.groups.insert(group.group_id().clone(), group);
         encoded
     }
-    /// Creates a group using the package decoded in when reading the invite
-    /// Returns the serialized welcome message
-    pub fn create_group(&mut self, package: DecodedPackage) -> Vec<u8> {
-        let package = package.key_package;
+
+    pub fn create_group(&mut self) -> String {
         let provider = provider();
-        let mut group = MlsGroup::builder()
+        let group = MlsGroup::builder()
             .use_ratchet_tree_extension(true)
             .build(
                 provider,
@@ -154,6 +152,32 @@ impl AppState {
             )
             .unwrap();
 
+        let group_id = group.group_id();
+
+        if self.groups.contains_key(&group_id) {
+            todo!("Group id collision that should not happen if group id is random");
+        }
+
+        let js_group_id = BASE64_URL_SAFE_NO_PAD.encode(group_id.as_slice());
+        // Need to create id before moving group into map
+        self.groups.insert(group_id.clone(), group);
+        js_group_id
+    }
+
+    /// Creates a group using the package decoded in when reading the invite.
+    /// Returns the serialized welcome message.
+    /// Don't use "package" as a paramter name as it is reserved in JavaScript and will make
+    /// the wasm bindgen code fail.
+    pub fn invite(&mut self, group_id: &str, key_package: DecodedPackage) -> Vec<u8> {
+        let bytes = BASE64_URL_SAFE_NO_PAD.decode(group_id).unwrap();
+        let group_id = GroupId::from_slice(&bytes);
+        let package = key_package.key_package;
+        let provider = provider();
+        let Some(group) = self.groups.get_mut(&group_id) else {
+            todo!("Group does not exist");
+        };
+
+        //TODO support multi user groups
         // We don't need the out message bedcause there is no other group members
         // that need to be "informed" of the change (the commit message)
         let (_out_message, welcome, _group_info) = group
@@ -162,13 +186,6 @@ impl AppState {
 
         // Process it on our end
         group.merge_pending_commit(provider).unwrap();
-
-        let group_id = group.group_id().clone();
-        if self.groups.contains_key(&group_id) {
-            todo!("Group already exists");
-        }
-
-        self.groups.insert(group_id.clone(), group);
 
         welcome.tls_serialize_detached().unwrap()
     }
@@ -183,7 +200,7 @@ impl AppState {
             .unwrap();
 
         let serialized = message.tls_serialize_detached().unwrap();
-        serialized.into()
+        serialized.into_boxed_slice()
     }
 
     pub fn receive_message(&mut self, group_id: String, message: String) -> String {
