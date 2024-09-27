@@ -1,11 +1,23 @@
-import { useParams } from "@solidjs/router";
-import { For, Show } from "solid-js";
+import { Navigate, useParams } from "@solidjs/router";
+import { createMemo, For, Show } from "solid-js";
+import { useAppContext } from "../components/AppContext";
 /** @import { JSX } from "solid-js" */
 
 export default function Chat() {
   const paramters = useParams();
 
-  const messages = () => [];
+  if (paramters.groupId === undefined) {
+    return <Navigate href="/" />;
+  }
+
+  const [app, setApp] = useAppContext();
+  //TODO this will not work when group indices change due to change of ordering and new groups being added
+  const groupIndex = createMemo(() =>
+    app.groups.findIndex((group) => group.id === paramters.groupId)
+  );
+  const group = () => app.groups[groupIndex()];
+
+  const messages = () => group().messages;
 
   /** @param {Parameters<JSX.EventHandler<HTMLFormElement, SubmitEvent>>[0]} event*/
   function handleSend(event) {
@@ -14,7 +26,11 @@ export default function Chat() {
       event.currentTarget.message
     ).value;
 
-    console.debug("Send message", message);
+    event.currentTarget.reset();
+
+    console.debug("Send message", message, groupIndex(), messages());
+    setApp("groups", groupIndex(), "messages", messages().length, message);
+    console.debug("Updated messages", messages(), app.groups[groupIndex()]);
   }
 
   return (
