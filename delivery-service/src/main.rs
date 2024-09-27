@@ -81,39 +81,22 @@ async fn create_message(
     StatusCode::CREATED
 }
 
-async fn handle_socket(mut socket: WebSocket, mut receiver: mpsc::Receiver<Bytes>) {
-    tracing::debug!("Websocket established");
-    // We only use the socket unidirectional for now
-    while let Some(message) = receiver.recv().await {
-        let message = ws::Message::Binary(message.into());
-        if let Err(error) = socket.send(message).await {
-            tracing::error!("Error sending message through websocket: {}", error)
-            //TODO remove channel to avoid memory leak. It is the clients responsibility to reestablish a connection
-        }
-    }
-
-    tracing::debug!("Message stream closed");
-
-    // Try to close gracefully but if not ignore error
-    if let Err(error) = socket.close().await {
-        tracing::trace!("Error closing websocket: {}", error);
-    }
-}
-
-/// Handles requests for listening to server sent events (SSE) that are used to send incoming messages from the server to the client
-async fn subscribe_messages(
-    State(state): State<AppState>,
-    websocket: WebSocketUpgrade,
-    Path(client_id): Path<Arc<str>>,
-) -> impl IntoResponse {
-    //TODO add cryptographic client authentication to avoid session hijacking
-    //TODO (continued) (even though the hijacker can't read the messages most likely, they can analyze traffic meta data for that client)
+async fn handle_socket(mut socket: WebSocket, State(state): State<AppState>, client_id: Arc<str>) {
+    //TODO keep alive
+    //TODO add client authentication to avoid session hijacking
+    // Hijackers can deny messages to the client and analyze meta data but not read messages if they don't have the clients credentials
 
     //TODO decide on buffer size
-    let (sender, receiver) = mpsc::channel(8);
+    let (sender, mut receiver) = mpsc::channel(8);
 
     // Register sender for this id
-    let previous_sender = state.channels.lock().await.insert(client_id, sender);
+    // Immediately drop lock after insert to avoid deadlock
+    let previous_sender = state
+        .channels
+        .lock()
+        .await
+        .insert(client_id.clone(), sender);
+
     if let Some(previous_sender) = previous_sender {
         //TODO think about if this is valid
         tracing::warn!("Replacing previous subscriber for client");
@@ -122,6 +105,41 @@ async fn subscribe_messages(
         drop(previous_sender);
     }
 
-    //TODO keep alive
-    websocket.on_upgrade(|socket| handle_socket(socket, receiver))
+    tracing::debug!("Websocket established");
+    loop {
+        tokio::select! {
+            Some(message) = receiver.recv() => {
+                let message = ws::Message::Binary(message.into());
+                if let Err(error) = socket.send(message).await {
+                    tracing::error!("Error sending message through websocket: {}", error);
+                    //TODO remove channel to avoid memory leak. It is the clients responsibility to reestablish a connection
+                    break;
+                }
+            },
+            // We only use the socket unidirectional for now
+            // but we want to know when the client closes the socket
+            Some(Ok(_)) = socket.recv() => {},
+            else => break,
+        }
+    }
+
+    tracing::debug!("Message stream closed");
+
+    // Try to close gracefully but if not ignore error
+    if let Err(error) = socket.close().await {
+        tracing::trace!("Ignoring error closing websocket: {}", error);
+    }
+
+    // Remove channel to avoid memory leak
+    // It is the clients responsibility to reestablish a new connection
+    state.channels.lock().await.remove(&client_id);
+}
+
+/// Handles requests for listening to server sent events (SSE) that are used to send incoming messages from the server to the client
+async fn subscribe_messages(
+    state: State<AppState>,
+    websocket: WebSocketUpgrade,
+    Path(client_id): Path<Arc<str>>,
+) -> impl IntoResponse {
+    websocket.on_upgrade(|socket| handle_socket(socket, state, client_id))
 }
