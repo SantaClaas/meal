@@ -6,7 +6,7 @@ use axum::{
         ws::{self, WebSocket},
         Path, State, WebSocketUpgrade,
     },
-    http::{HeaderValue, Method, StatusCode},
+    http::{header::CONTENT_TYPE, HeaderValue, Method, StatusCode},
     response::IntoResponse,
     routing::{get, post},
     Router,
@@ -46,6 +46,8 @@ async fn main() {
         app = app.layer(
             CorsLayer::new()
                 .allow_origin("http://localhost:5173".parse::<HeaderValue>().unwrap())
+                // Allow content type header as it is set for MLS messges
+                .allow_headers([CONTENT_TYPE])
                 .allow_methods([Method::GET]),
         );
     }

@@ -15,7 +15,7 @@ export default function Join() {
     return <Navigate href="/" />;
   }
 
-  const [currentState, { initialize }] = useAppContext();
+  const [app, setApp] = useAppContext();
 
   const [keyPackage] = createResource(paramters.package, decode_key_package);
 
@@ -28,9 +28,8 @@ export default function Join() {
       .value;
 
     // Complete onboarding if used for the first time
-    let state = currentState();
-    if (state === undefined) {
-      state = initialize(name);
+    if (name && name !== app.name) {
+      setApp("name", name);
     }
 
     const keys = keyPackage();
@@ -39,28 +38,20 @@ export default function Join() {
       return;
     }
 
-    const groupId = state.app.create_group();
-    // Need to extract name before key package is consumed or it will error
-    const friendName = keys.friend_name;
-    const welcomePackage = state.app.invite(groupId, keys);
-    // Send welcome to peer
-    //TODO use id to send to correct peer because name might not be provided
-    if (friendName === undefined) {
-      console.error("Expected peer to be defined");
-      return;
-    }
+    const groupId = app.client.create_group();
+    // Need to extract id before key package is consumed or it will error
+    const url = new URL(`http://127.0.0.1:3000/messages/${keys.client_id}`);
 
-    const request = new Request(
-      `http://127.0.0.1:3000/messages/${friendName}`,
-      {
-        method: "post",
-        headers: {
-          //https://www.rfc-editor.org/rfc/rfc9420.html#name-the-message-mls-media-type
-          "Content-Type": "message/mls",
-        },
-        body: welcomePackage,
-      }
-    );
+    const welcomePackage = app.client.invite(groupId, keys);
+    // Send welcome to peer
+    const request = new Request(url, {
+      method: "post",
+      headers: {
+        //https://www.rfc-editor.org/rfc/rfc9420.html#name-the-message-mls-media-type
+        "Content-Type": "message/mls",
+      },
+      body: welcomePackage,
+    });
 
     //TODO error handling
     await fetch(request);
@@ -110,7 +101,7 @@ export default function Join() {
           id="username"
           autocomplete="username"
           required
-          value={currentState()?.name ?? ""}
+          value={app.name ?? ""}
         />
 
         <button type="submit" name="accept">

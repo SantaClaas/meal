@@ -2,6 +2,7 @@ use core::str;
 use std::{collections::HashMap, sync::OnceLock};
 
 use base64::prelude::*;
+use nanoid::nanoid;
 use openmls::prelude::*;
 use openmls_basic_credential::SignatureKeyPair;
 use openmls_rust_crypto::OpenMlsRustCrypto;
@@ -12,19 +13,22 @@ use wasm_bindgen::prelude::*;
 pub(crate) const CIPHERSUITE: Ciphersuite =
     Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 
+const ID_LENGTH: usize = 21;
+
 fn provider() -> &'static impl OpenMlsProvider {
     static INSTANCE: OnceLock<OpenMlsRustCrypto> = OnceLock::new();
     INSTANCE.get_or_init(OpenMlsRustCrypto::default)
 }
 
 struct User {
-    name: String,
+    name: Option<String>,
     credential: CredentialWithKey,
     signature_key: SignatureKeyPair,
 }
 
-#[wasm_bindgen]
-pub struct AppState {
+#[wasm_bindgen(getter_with_clone)]
+pub struct Client {
+    pub id: String,
     user: User,
     groups: HashMap<GroupId, MlsGroup>,
     /// Need to be kept for later reference
@@ -33,6 +37,8 @@ pub struct AppState {
 
 #[wasm_bindgen(getter_with_clone)]
 pub struct DecodedPackage {
+    /// The id of the client that sent the key package
+    pub client_id: String,
     pub friend_name: Option<String>,
     key_package: KeyPackage,
 }
@@ -44,14 +50,16 @@ pub enum Message {
 }
 
 #[wasm_bindgen]
-impl AppState {
+impl Client {
     #[wasm_bindgen(constructor)]
-    pub fn new(name: &str) -> Self {
+    pub fn new(id: Option<String>, name: Option<String>) -> Self {
         console_error_panic_hook::set_once();
         let provider = provider();
 
+        let client_id = id.unwrap_or_else(|| nanoid!(ID_LENGTH));
+
         //TODO Basic credentials only for tests and demo
-        let credential: Credential = BasicCredential::new(name.into()).into();
+        let credential: Credential = BasicCredential::new(client_id.clone().into_bytes()).into();
 
         let signature_keys = SignatureKeyPair::new(CIPHERSUITE.signature_algorithm()).unwrap();
         signature_keys.store(provider.storage()).unwrap();
@@ -68,14 +76,19 @@ impl AppState {
         };
 
         Self {
+            id: client_id,
             user,
             groups: HashMap::new(),
             key_packages: Vec::new(),
         }
     }
 
-    pub fn get_name(&self) -> String {
-        self.user.name.clone().into()
+    pub fn get_name(&self) -> Option<String> {
+        self.user.name.clone()
+    }
+
+    pub fn set_name(&mut self, name: Option<String>) {
+        self.user.name = name;
     }
 
     /// name is name to show on the invite. Does not have to be the same as the name of the user
@@ -85,18 +98,20 @@ impl AppState {
         //TODO and remove things that do not change or where we use a default
         //TODO adding postcard as dependency yields 9-10% smaller serialized + base64 encoded key packages
 
+        let mut id = self.id.clone();
+        if let Some(name) = name {
+            id.push_str(&name);
+        }
+
+        let extensions = Extensions::single(Extension::ApplicationId(ApplicationIdExtension::new(
+            id.as_bytes(),
+        )));
+
         // Add identifier to help users identify the origin of the key package / invitation
         // Details: https://www.rfc-editor.org/rfc/rfc9420.html#section-5.3.3
-        let builder = KeyPackage::builder();
 
-        let builder = if let Some(name) = name {
-            let id = ApplicationIdExtension::new(name.as_bytes());
-            builder.key_package_extensions(Extensions::single(Extension::ApplicationId(id)))
-        } else {
-            builder
-        };
-
-        let bundle = builder
+        let bundle = KeyPackage::builder()
+            .key_package_extensions(extensions)
             .build(
                 CIPHERSUITE,
                 provider(),
@@ -289,14 +304,23 @@ pub fn decode_key_package(encoded: &str) -> DecodedPackage {
         .validate(provider.crypto(), ProtocolVersion::Mls10)
         .unwrap();
 
-    let id = validated.extensions().application_id().map(|id| {
+    let Some(mut id) = validated.extensions().application_id().map(|id| {
         str::from_utf8(id.as_slice())
             .unwrap_or_else(|_| todo!("Handle id not utf8"))
             .to_owned()
-    });
+    }) else {
+        todo!("No application id provided. Can not contact user")
+    };
+
+    let friend_name = if id.len() > ID_LENGTH {
+        Some(id.split_off(ID_LENGTH))
+    } else {
+        None
+    };
 
     DecodedPackage {
-        friend_name: id,
+        client_id: id,
+        friend_name,
         key_package: validated,
     }
 }

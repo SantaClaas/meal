@@ -2,37 +2,36 @@ import { Navigate, useNavigate } from "@solidjs/router";
 import { useAppContext } from "../components/AppContext";
 import { createEffect, createSignal, Show } from "solid-js";
 /**
- * @import { JSX, Signal, Accessor } from "solid-js";
+ * @import { JSX, Signal, Accessor, EffectFunction } from "solid-js";
  */
 
 export default function Invite() {
   const navigate = useNavigate();
 
-  /**
-   * Go to chat when invite is accepted (welcome for the keypackage comes in)
-   * @param {string} groupId
-   */
-  function handleWelcomeIn(groupId) {
-    //TODO check if user has automatic accept enabled
-    //TODO check if this welcome is for this key package
-    navigate(`/chat/${groupId}`);
-  }
+  // Navigate to new group chat when invite is accepted (when it is added from processing incoming welcome)
+  createEffect(
+    // Using the groups (instead of length) as previous does not work because the reference does not change
+    /** @type {EffectFunction<number | undefined>}*/ (previousLength) => {
+      //TODO check if user has automatic accept enabled
+      //TODO check if this welcome is for this key package
+      if (previousLength === undefined) return app.groups.length;
 
-  const [currentState] = useAppContext(handleWelcomeIn);
-  if (currentState() === undefined) {
-    return <Navigate href="/" />;
-  }
+      // Just take the last one added for now 🥴
+      // I need to think more about this and then rework it
+      if (previousLength >= app.groups.length) return app.groups.length;
+      // Just assume the last one is the last one added 🥴
+      const group = app.groups.at(-1);
+      if (group !== undefined) navigate(`/chat/${group.id}`);
+
+      return app.groups.length;
+    }
+  );
+
+  const [app] = useAppContext();
 
   /** @param {string|undefined} name */
   function createInviteUrl(name) {
-    const state = currentState();
-    if (state === undefined) {
-      console.error("Expected state to be defined");
-      navigate("/");
-      return;
-    }
-
-    const encodedInvite = state.app.create_invite(name);
+    const encodedInvite = app.client.create_invite(name);
     return new URL(`/join/${encodedInvite}`, location.origin);
   }
 
@@ -57,13 +56,6 @@ export default function Invite() {
   async function handleShare(event) {
     event.preventDefault();
 
-    const state = currentState();
-    if (state === undefined) {
-      console.error("Expected state to be defined");
-      navigate("/");
-      return;
-    }
-
     // This should be a switch expression
     /** @type {"share"|"copy"} */
     let shareMedium;
@@ -83,6 +75,7 @@ export default function Invite() {
       event.currentTarget.includename
     ).checked;
 
+    /** @type {string | undefined} */
     let name = undefined;
     // const shareMedium = "share" in event.currentTarget ;
     if (isNameIncluded) {
@@ -129,12 +122,12 @@ export default function Invite() {
               name="displayname"
               id="displayname"
               required
-              value={currentState()?.name}
+              value={app.name ?? ""}
             />
           </fieldset>
           {/* TODO wire up */}
           {/* This setting is to reduce the steps needed to establish a new chat but might be uncomfortable for some users */}
-          <input type="checkbox" name="accept" id="accept" />
+          <input type="checkbox" name="accept" id="accept" checked disabled />
           <label for="accept">
             Automatically accept requests from this invite
           </label>
