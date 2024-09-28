@@ -17,6 +17,14 @@ const id = localStorage.getItem("id");
 const name = localStorage.getItem("name");
 const isOnboarded = localStorage.getItem("isOnboarded") !== null;
 const client = new Client(id ?? undefined, name ?? undefined);
+
+// const isLocalhost =
+//   window.location.hostname === "localhost" ||
+//   window.location.hostname === "127.0.0.1";
+// const isSecureRequired = window.isSecureContext && !isLocalhost;
+/** The url for messages endpoint. Don't forget the trailing slash. */
+export const messagesUrl = new URL("/messages/", window.location.origin);
+
 const [app, setApp] = createStore({
   name,
   // Client creates an id if there is none provided
@@ -131,8 +139,9 @@ const socket = createMemo(
     console.debug("Previous socket", previousSocket);
     if (previousSocket) previousSocket.close();
 
-    //TODO ensure secure connection (WSS/HTTPS) in production
-    const socket = new WebSocket(`ws://127.0.0.1:3000/messages/${app.id}`);
+    // https:// is automatically replaced with wss://
+    const socketUrl = new URL(app.id, messagesUrl);
+    const socket = new WebSocket(socketUrl);
     socket.binaryType = "arraybuffer";
     socket.addEventListener("message", receiveMessage);
 

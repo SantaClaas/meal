@@ -1,10 +1,10 @@
 import { Navigate, useNavigate, useParams } from "@solidjs/router";
 import { createResource, Match, Switch } from "solid-js";
-import { useAppContext } from "../components/AppContext";
+import { useAppContext, messagesUrl } from "../components/AppContext";
 import { decode_key_package } from "../../../core/pkg/meal";
 
 /**
- * @import { JSX, Signal, Accessor } from "solid-js"
+ * @import { JSX, Accessor } from "solid-js";
  * @import { Group } from "../components/AppContext";
  */
 
@@ -53,7 +53,7 @@ export default function Join() {
     setApp("groups", app.groups.length, group);
 
     // Need to extract id before key package is consumed or it will error
-    const url = new URL(`http://127.0.0.1:3000/messages/${group.friend.id}`);
+    const url = new URL(group.friend.id, messagesUrl);
 
     const welcomePackage = app.client.invite(groupId, keys);
     // Send welcome to peer

@@ -36,23 +36,10 @@ async fn main() {
 
     tracing::info!("Starting");
 
-    let mut app = Router::new()
+    let app = Router::new()
         .route("/messages/:to", post(create_message))
-        .route("/messages/:to", get(subscribe_messages));
-
-    // Not looking nice, but functional to have CORS only in development
-    #[cfg(debug_assertions)]
-    {
-        app = app.layer(
-            CorsLayer::new()
-                .allow_origin("http://localhost:5173".parse::<HeaderValue>().unwrap())
-                // Allow content type header as it is set for MLS messges
-                .allow_headers([CONTENT_TYPE])
-                .allow_methods([Method::GET]),
-        );
-    }
-
-    let app = app.with_state(Default::default());
+        .route("/messages/:to", get(subscribe_messages))
+        .with_state(Default::default());
 
     // let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")

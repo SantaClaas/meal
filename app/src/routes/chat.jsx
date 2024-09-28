@@ -1,6 +1,6 @@
 import { Navigate, useParams } from "@solidjs/router";
 import { createMemo, For, Show } from "solid-js";
-import { useAppContext } from "../components/AppContext";
+import { useAppContext, messagesUrl } from "../components/AppContext";
 /** @import { JSX } from "solid-js" */
 
 export default function Chat() {
@@ -43,17 +43,16 @@ export default function Chat() {
     setApp("groups", groupIndex(), "messages", messages().length, message);
     //TODO Should use SolidJS signal system to make sending messages an effect of adding messages to the chat
     const body = app.client.send_message(group().id, message);
-    const request = new Request(
-      `http://127.0.0.1:3000/messages/${group().friend.id}`,
-      {
-        method: "post",
-        headers: {
-          //https://www.rfc-editor.org/rfc/rfc9420.html#name-the-message-mls-media-type
-          "Content-Type": "message/mls",
-        },
-        body,
-      }
-    );
+
+    const url = new URL(group().friend.id, messagesUrl);
+    const request = new Request(url, {
+      method: "post",
+      headers: {
+        //https://www.rfc-editor.org/rfc/rfc9420.html#name-the-message-mls-media-type
+        "Content-Type": "message/mls",
+      },
+      body,
+    });
 
     //TODO error handling
     //TODO retry
