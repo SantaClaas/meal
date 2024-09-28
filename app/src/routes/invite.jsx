@@ -1,9 +1,9 @@
-import { Navigate, useNavigate } from "@solidjs/router";
+import { useNavigate } from "@solidjs/router";
 import { useAppContext } from "../components/AppContext";
-import { createEffect, createSignal, Show } from "solid-js";
-/**
- * @import { JSX, Signal, Accessor, EffectFunction } from "solid-js";
- */
+import { createEffect, Show } from "solid-js";
+//@ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
+// https://devblogs.microsoft.com/typescript/announcing-typescript-5-5/#the-jsdoc-@import-tag
+/** @import { JSX, Signal, Accessor, EffectFunction } from "solid-js" */
 
 export default function Invite() {
   const navigate = useNavigate();

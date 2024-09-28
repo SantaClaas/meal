@@ -1,6 +1,6 @@
-/**
- * @import { Signal, JSX, VoidProps, Setter } from "solid-js"
- */
+//@ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
+// https://devblogs.microsoft.com/typescript/announcing-typescript-5-5/#the-jsdoc-@import-tag
+/** @import { JSX, VoidProps } from "solid-js" */
 
 /**
  *

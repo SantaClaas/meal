@@ -1,6 +1,7 @@
 import { Navigate, useParams } from "@solidjs/router";
 import { createMemo, For, Show } from "solid-js";
 import { useAppContext, messagesUrl } from "../components/AppContext";
+//@ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
 /** @import { JSX } from "solid-js" */
 
 export default function Chat() {

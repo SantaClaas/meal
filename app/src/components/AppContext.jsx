@@ -1,11 +1,11 @@
-import { createContext, createEffect, createMemo, useContext } from "solid-js";
+import { createContext, createEffect, useContext } from "solid-js";
 //TODO register rust wasm pack package as package in workspace
 import { Client } from "../../../core/pkg";
 import { createStore } from "solid-js/store";
 
 /**
- * @import { ParentProps, Context, EffectFunction } from "solid-js";
- * @import { Friend } from "../../../core/pkg";
+ * @import { ParentProps, Context, EffectFunction } from "solid-js"
+ * @import { Friend } from "../../../core/pkg"
  * @typedef {{id: string, friend: Friend, messages: string[]}} Group
  * TODO these need to be derivated from the rust types which should be automated
  * @typedef {{type: "Welcome", group_id: string, friend: Friend}} Welcome
@@ -134,7 +134,7 @@ function receiveMessage(event) {
 }
 
 // Create new socket when id changes
-const socket = createMemo(
+createEffect(
   /** @type {EffectFunction<WebSocket | undefined>}*/ (previousSocket) => {
     console.debug("Previous socket", previousSocket);
     if (previousSocket) previousSocket.close();

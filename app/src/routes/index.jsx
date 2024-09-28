@@ -1,9 +1,9 @@
-import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
+import { Show } from "solid-js";
 import Onboarding from "../components/Onboarding";
 import { useAppContext } from "../components/AppContext";
-/**
- * @import { Signal, JSX, Accessor } from "solid-js"
- */
+//@ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
+// https://devblogs.microsoft.com/typescript/announcing-typescript-5-5/#the-jsdoc-@import-tag
+/** @import { Signal, JSX, Accessor } from "solid-js" */
 
 export default function () {
   const [app, setApp] = useAppContext();

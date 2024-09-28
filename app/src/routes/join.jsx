@@ -3,10 +3,11 @@ import { createResource, Match, Switch } from "solid-js";
 import { useAppContext, messagesUrl } from "../components/AppContext";
 import { decode_key_package } from "../../../core/pkg/meal";
 
-/**
- * @import { JSX, Accessor } from "solid-js";
- * @import { Group } from "../components/AppContext";
- */
+//@ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
+// https://devblogs.microsoft.com/typescript/announcing-typescript-5-5/#the-jsdoc-@import-tag
+/**@import { JSX, Accessor } from "solid-js" */
+//@ts-expect-error TS6192 See above
+/** @import { Group } from "../components/AppContext" */
 
 /**
  * @returns {JSX.Element}
