@@ -15,4 +15,8 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    // Fixes top level await build error and support should be fine, right?...right?
+    target: "esnext",
+  },
 });
