@@ -35,9 +35,6 @@ WORKDIR /delivery-service
 COPY ./Cargo.lock ./Cargo.lock
 COPY ./delivery-service/Cargo.toml ./Cargo.toml
 
-# Install serialport crate dependencies
-RUN apt-get update && apt-get install -y libudev-dev
-
 # Build and cache the dependencies
 RUN cargo build --release
 RUN rm src/*.rs
