@@ -1,25 +1,30 @@
 # Build the app
 FROM node:21 AS build-app
-WORKDIR /app
+WORKDIR /app-build
 
 # Installs pnpm as it is set as package manager in package.json
 RUN corepack enable
 
 # Copy over manifests
-COPY ./app/package.json ./package.json
-COPY ./app/pnpm-lock.yaml ./pnpm-lock.yaml
+# Workspace root
+COPY ./package.json ./package.json
+COPY ./pnpm-workspace.yaml ./pnpm-workspace.yaml
+COPY ./pnpm-lock.yaml ./pnpm-lock.yaml
+
+# App specific
+COPY ./app/package.json ./app/package.json
 
 # Install dependencies
 RUN pnpm install
 
 # Copy over the source to build the application
-COPY ./app ./
+COPY ./app ./app
 
 # Build and cache
 RUN pnpm run build
 
 # Build the delivery service containing the API and hosting the app
-FROM rust:1.79 AS build-delivery-service
+FROM rust:1.81 AS build-delivery-service
 
 # Create a new empty shell project
 RUN USER=root cargo new --bin delivery-service
