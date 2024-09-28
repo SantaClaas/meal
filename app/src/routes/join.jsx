@@ -1,7 +1,7 @@
 import { Navigate, useNavigate, useParams } from "@solidjs/router";
 import { createResource, Match, Switch } from "solid-js";
 import { useAppContext, messagesUrl } from "../components/AppContext";
-import { decode_key_package } from "../../../core/pkg/meal";
+import { decode_key_package } from "../../../core/pkg";
 
 //@ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
 // https://devblogs.microsoft.com/typescript/announcing-typescript-5-5/#the-jsdoc-@import-tag
