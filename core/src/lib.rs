@@ -58,18 +58,6 @@ enum Message {
     Welcome { group_id: String, friend: Friend },
 }
 
-/// The result of processing a welcome message and the introduction message
-#[deprecated = "Use GroupInvite instead"]
-#[derive(Serialize)]
-struct GroupInvite {
-    /// The id of the group that was created from the welcome message
-    group_id: String,
-    /// The id of the client that sent the welcome message
-    client_id: String,
-    /// The name of the client that sent the welcome message
-    name: Option<String>,
-}
-
 fn encode_application_id(mut id: String, name: &Option<String>) -> Extensions {
     if let Some(name) = name {
         id.push_str(name);
@@ -190,61 +178,6 @@ impl Client {
         BASE64_URL_SAFE_NO_PAD.encode(data)
     }
 
-    #[deprecated = "Use process_welcome instead"]
-    pub fn join_group(&mut self, encoded_welcome: String) -> JsValue {
-        let data = BASE64_URL_SAFE_NO_PAD.decode(encoded_welcome).unwrap();
-        let messages = TlsVecU8::<MlsMessageIn>::tls_deserialize_exact_bytes(&data)
-            .unwrap()
-            .into_vec();
-
-        let (welcome, introduction) = {
-            let mut iterator = messages.into_iter();
-            (iterator.next().unwrap(), iterator.next().unwrap())
-        };
-
-        // Step 1: Process welcome
-        let MlsMessageBodyIn::Welcome(welcome) = welcome.extract() else {
-            panic!("Did not expect non welcome");
-        };
-
-        let provider = provider();
-        // Create group
-        let configuration = MlsGroupJoinConfig::builder()
-            .use_ratchet_tree_extension(true)
-            .build();
-
-        let mut group = StagedWelcome::new_from_welcome(provider, &configuration, welcome, None)
-            .unwrap()
-            .into_group(provider)
-            .unwrap();
-
-        // Step 2: Process introduction
-        let MlsMessageBodyIn::PrivateMessage(introduction) = introduction.extract() else {
-            todo!("Did not expect non application message");
-        };
-
-        // Extract introduction application message with new group now
-        let introduction = group.process_message(provider, introduction).unwrap();
-        let ProcessedMessageContent::ApplicationMessage(content) = introduction.into_content()
-        else {
-            todo!("Handle processed message content");
-        };
-
-        let ApplicationMessage::Introduction { id, name } =
-            postcard::from_bytes(&content.into_bytes()).unwrap();
-        // Extract id before moving group into map
-        let js_group_id = BASE64_URL_SAFE_NO_PAD.encode(group.group_id().as_slice());
-        // Add group after introduction has been processed
-        self.groups.insert(group.group_id().clone(), group);
-
-        serde_wasm_bindgen::to_value(&GroupInvite {
-            group_id: js_group_id,
-            client_id: id,
-            name,
-        })
-        .unwrap()
-    }
-
     pub fn create_group(&mut self) -> String {
         let provider = provider();
         let group = MlsGroup::builder()
@@ -328,26 +261,6 @@ impl Client {
 
         let serialized = message.tls_serialize_detached().unwrap();
         serialized.into_boxed_slice()
-    }
-
-    pub fn receive_message(&mut self, group_id: String, message: String) -> String {
-        let bytes = BASE64_URL_SAFE_NO_PAD.decode(group_id).unwrap();
-        let id = GroupId::from_slice(&bytes);
-        let group = self.groups.get_mut(&id).unwrap();
-        let provider = provider();
-        let bytes = BASE64_URL_SAFE_NO_PAD.decode(message).unwrap();
-        let message = MlsMessageIn::tls_deserialize_exact(&bytes).unwrap();
-        let MlsMessageBodyIn::PrivateMessage(message) = message.extract() else {
-            todo!()
-        };
-
-        // let message: ProtocolMessage = message.into();
-        let message = group.process_message(provider, message).unwrap();
-        let ProcessedMessageContent::ApplicationMessage(message) = message.into_content() else {
-            todo!()
-        };
-
-        String::from_utf8(message.into_bytes()).unwrap()
     }
 
     fn process_private_message(&mut self, message: PrivateMessageIn) -> Message {

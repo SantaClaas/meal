@@ -7,52 +7,11 @@ import { createStore } from "solid-js/store";
  * @import { ParentProps, Context, EffectFunction } from "solid-js";
  * @import { Friend } from "../../../core/pkg";
  * @typedef {{id: string, friend: Friend, messages: string[]}} Group
+ * TODO these need to be derivated from the rust types which should be automated
+ * @typedef {{type: "Welcome", group_id: string, friend: Friend}} Welcome
+ * @typedef {{type: "Private", group_id: string, message: string}} Private
+ * @typedef {Welcome | Private} Message
  */
-
-/**
- * A wrapper around the client to make using it easier
- */
-class App {
-  client;
-
-  groups;
-
-  #setGroups;
-  /**
-   * @param {Client} client
-   */
-  constructor(client) {
-    this.client = client;
-    const [groups, setGroups] = createStore([]);
-    this.groups = groups;
-    this.#setGroups = setGroups;
-  }
-
-  /**
-   *
-   * @param {string} toClientId
-   * @param {string} groupId
-   * @param {string} message
-   */
-  async sendMessage(toClientId, groupId, message) {
-    const body = this.client.send_message(groupId, message);
-    const request = new Request(
-      `http://127.0.0.1:3000/messages/${toClientId}`,
-      {
-        method: "post",
-        headers: {
-          //https://www.rfc-editor.org/rfc/rfc9420.html#name-the-message-mls-media-type
-          "Content-Type": "message/mls",
-        },
-        body,
-      }
-    );
-
-    //TODO error handling
-    //TODO retry
-    await fetch(request);
-  }
-}
 
 const id = localStorage.getItem("id");
 const name = localStorage.getItem("name");
@@ -184,13 +143,6 @@ const socket = createMemo(
     return socket;
   }
 );
-
-/**
- * TODO these need to be derivated from the rust types which should be automated
- * @typedef {{type: "Welcome", group_id: string, friend: Friend}} Welcome
- * @typedef {{type: "Private", group_id: string, message: string}} Private
- * @typedef {Welcome | Private} Message
- */
 
 /**
  * @type {Context<[typeof app, typeof setApp]>}
