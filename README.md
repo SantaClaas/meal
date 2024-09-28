@@ -1,6 +1,6 @@
 # Meal
 
-Trying out OpenMLS + Rust + WebAssembly + SolidStart
+Trying out OpenMLS + Rust + WebAssembly + SolidJS
 
 ## Packing wasm
 
