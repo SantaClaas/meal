@@ -28,10 +28,10 @@ struct AppState {
 /// The single page application setup used in production. During development a vite proxy is used to host the app and
 /// proxy delivery service requests for a better development experience.
 fn serve_client() -> ServeDir<SetStatus<ServeFile>> {
-    ServeDir::new("./client")
+    ServeDir::new("./app")
         // If the route is a client side navigation route, this will serve the app and let the app router take over the
         // path handling after the app is loaded
-        .not_found_service(ServeFile::new("./client/index.html"))
+        .not_found_service(ServeFile::new("./app/index.html"))
 }
 
 #[tokio::main]
