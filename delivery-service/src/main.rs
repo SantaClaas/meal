@@ -6,13 +6,16 @@ use axum::{
         ws::{self, WebSocket},
         Path, State, WebSocketUpgrade,
     },
-    http::{header::CONTENT_TYPE, HeaderValue, Method, StatusCode},
+    http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
     Router,
 };
 use tokio::sync::{mpsc, Mutex};
-use tower_http::cors::CorsLayer;
+use tower_http::{
+    services::{ServeDir, ServeFile},
+    set_status::SetStatus,
+};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod extractor;
@@ -20,6 +23,15 @@ mod extractor;
 #[derive(Clone, Default)]
 struct AppState {
     channels: Arc<Mutex<HashMap<Arc<str>, mpsc::Sender<Bytes>>>>,
+}
+
+/// The single page application setup used in production. During development a vite proxy is used to host the app and
+/// proxy delivery service requests for a better development experience.
+fn serve_client() -> ServeDir<SetStatus<ServeFile>> {
+    ServeDir::new("./client")
+        // If the route is a client side navigation route, this will serve the app and let the app router take over the
+        // path handling after the app is loaded
+        .not_found_service(ServeFile::new("./client/index.html"))
 }
 
 #[tokio::main]
@@ -39,12 +51,17 @@ async fn main() {
     let app = Router::new()
         .route("/messages/:to", post(create_message))
         .route("/messages/:to", get(subscribe_messages))
+        .fallback_service(serve_client())
         .with_state(Default::default());
 
-    // let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
-        .await
-        .unwrap();
+    // It might become annoying to get the mac pop up for running on 0.0.0.0 so change to localhost instead
+    let listener = tokio::net::TcpListener::bind(if cfg!(debug_assertions) {
+        "127.0.0.1:3000"
+    } else {
+        "0.0.0.0:3000"
+    })
+    .await
+    .unwrap();
 
     tracing::debug!("listening on {}", listener.local_addr().unwrap());
     axum::serve(listener, app).await.unwrap();
