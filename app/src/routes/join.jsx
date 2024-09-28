@@ -3,7 +3,10 @@ import { createResource, Match, Switch } from "solid-js";
 import { useAppContext } from "../components/AppContext";
 import { decode_key_package } from "../../../core/pkg/meal";
 
-/** @import { JSX, Signal, Accessor } from "solid-js" */
+/**
+ * @import { JSX, Signal, Accessor } from "solid-js"
+ * @import { Group } from "../components/AppContext";
+ */
 
 /**
  * @returns {JSX.Element}
@@ -39,8 +42,18 @@ export default function Join() {
     }
 
     const groupId = app.client.create_group();
+    /** @type {Group} */
+    const group = {
+      id: groupId,
+      friend: keys.friend,
+      messages: [],
+    };
+
+    // Add group to store https://docs.solidjs.com/concepts/stores#appending-new-values
+    setApp("groups", app.groups.length, group);
+
     // Need to extract id before key package is consumed or it will error
-    const url = new URL(`http://127.0.0.1:3000/messages/${keys.client_id}`);
+    const url = new URL(`http://127.0.0.1:3000/messages/${group.friend.id}`);
 
     const welcomePackage = app.client.invite(groupId, keys);
     // Send welcome to peer
@@ -70,7 +83,7 @@ export default function Join() {
           <p>Loading...</p>
         </Match>
 
-        <Match when={keyPackage()?.friend_name}>
+        <Match when={keyPackage()?.friend.name}>
           {
             /** @type {(item: Accessor<NonNullable<string>>) => JSX.Element} */
             (
@@ -80,7 +93,7 @@ export default function Join() {
             )
           }
         </Match>
-        <Match when={!keyPackage()?.friend_name}>
+        <Match when={!keyPackage()?.friend.name}>
           {/* TODO add additional information that the person that has sent the invite chose to not include their name
           publicly in the invite. Make it clear that this is only for the invite and the name might be revealed when they accepted your request */}
           <p>You are invited to a chat</p>

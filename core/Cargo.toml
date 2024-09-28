@@ -14,9 +14,11 @@ openmls = { version = "0.6.0", features = ["js"] }
 openmls_basic_credential = "0.3.0"
 openmls_rust_crypto = "0.3.0"
 openmls_traits = "0.3.0"
+postcard = { version = "1.0.10", features = ["alloc"] }
 serde = { version = "1.0.210", features = ["derive"] }
 serde-wasm-bindgen = "0.6.5"
 thiserror = "1.0.61"
+tls_codec = "0.4.1"
 wasm-bindgen = "0.2.92"
 wasm-bindgen-futures = "0.4.42"
 web-sys = "0.3.70"

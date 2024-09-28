@@ -15,12 +15,24 @@ export default function Chat() {
   const groupIndex = createMemo(() =>
     app.groups.findIndex((group) => group.id === paramters.groupId)
   );
+
+  if (groupIndex() < 0) {
+    return (
+      <>
+        <h1>Chat not found</h1>
+        <p>
+          This chat does not seem to exist <a href="/">Go back</a>
+        </p>
+      </>
+    );
+  }
+
   const group = () => app.groups[groupIndex()];
 
   const messages = () => group().messages;
 
   /** @param {Parameters<JSX.EventHandler<HTMLFormElement, SubmitEvent>>[0]} event*/
-  function handleSend(event) {
+  async function handleSend(event) {
     event.preventDefault();
     const message = /** @type {HTMLInputElement} */ (
       event.currentTarget.message
@@ -28,17 +40,53 @@ export default function Chat() {
 
     event.currentTarget.reset();
 
-    console.debug("Send message", message, groupIndex(), messages());
     setApp("groups", groupIndex(), "messages", messages().length, message);
-    console.debug("Updated messages", messages(), app.groups[groupIndex()]);
+    //TODO Should use SolidJS signal system to make sending messages an effect of adding messages to the chat
+    const body = app.client.send_message(group().id, message);
+    const request = new Request(
+      `http://127.0.0.1:3000/messages/${group().friend.id}`,
+      {
+        method: "post",
+        headers: {
+          //https://www.rfc-editor.org/rfc/rfc9420.html#name-the-message-mls-media-type
+          "Content-Type": "message/mls",
+        },
+        body,
+      }
+    );
+
+    //TODO error handling
+    //TODO retry
+    await fetch(request);
   }
 
   return (
     <>
-      <hgroup>
-        <h1>Chat</h1>
-        <p>Group ID: {paramters.groupId}</p>
-      </hgroup>
+      <h1>Chat</h1>
+      <table>
+        <tbody>
+          <tr>
+            <td>Group id</td>
+            <td>{paramters.groupId}</td>
+          </tr>
+          <tr>
+            <td>Friend client id</td>
+            <td>{group().friend.id}</td>
+          </tr>
+          <tr>
+            <td>Friend name</td>
+            <td>{group().friend.name}</td>
+          </tr>
+          <tr>
+            <td>My client id</td>
+            <td>{app.id}</td>
+          </tr>
+          <tr>
+            <td>My name</td>
+            <td>{app.name}</td>
+          </tr>
+        </tbody>
+      </table>
       <h2>Messages</h2>
       <Show when={messages().length > 0} fallback={<p>No messages</p>}>
         <ol>

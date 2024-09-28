@@ -1,18 +1,12 @@
-import {
-  createContext,
-  createEffect,
-  createMemo,
-  createSignal,
-  lazy,
-  untrack,
-  useContext,
-} from "solid-js";
+import { createContext, createEffect, createMemo, useContext } from "solid-js";
 //TODO register rust wasm pack package as package in workspace
 import { Client } from "../../../core/pkg";
 import { createStore } from "solid-js/store";
 
 /**
  * @import { ParentProps, Context, EffectFunction } from "solid-js";
+ * @import { Friend } from "../../../core/pkg";
+ * @typedef {{id: string, friend: Friend, messages: string[]}} Group
  */
 
 /**
@@ -71,7 +65,9 @@ const [app, setApp] = createStore({
     return client.id;
   },
   client,
-  /** @type {Array<{id: string, messages: string[]}>} */
+  /**
+   * @type {Group[]}
+   */
   groups: [],
   isOnboarded,
 });
@@ -135,40 +131,38 @@ function receiveMessage(event) {
     app.client.process_message(new Uint8Array(event.data))
   );
   console.debug("Processed message", message);
-  if ("Welcome" in message) {
-    // Add group to store https://docs.solidjs.com/concepts/stores#appending-new-values
-    setApp("groups", app.groups.length, {
-      id: message.Welcome.group_id,
-      messages: [],
-    });
-    return;
-  }
+  switch (message.type) {
+    case "Welcome":
+      console.debug("Processed welcome", message);
+      // Add group to store https://docs.solidjs.com/concepts/stores#appending-new-values
+      setApp("groups", app.groups.length, {
+        id: message.group_id,
+        friend: message.friend,
+        messages: [],
+      });
+      break;
+    case "Private":
+      console.debug("Received message", message.group_id, message.message);
 
-  if ("Private" in message) {
-    console.debug(
-      "Received message",
-      message.Private.group_id,
-      message.Private.message
-    );
+      // Get group
+      //TODO sort groups by last message time
+      // Using linear search because:
+      // 1. Groups that often receive messages are displayed at the top of the list which reduces search time
+      // 2. An average user has few active groups that reguarly receive messages
 
-    // Get group
-    //TODO sort groups by last message time
-    // Using linear search because:
-    // 1. Groups that often receive messages are displayed at the top of the list which reduces search time
-    // 2. An average user has few active groups that reguarly receive messages
+      // Assuming groups that often receive messages are reguarly used
+      // this means they are at the top of the list.
 
-    // Assuming groups that often receive messages are reguarly used
-    // this means they are at the top of the list.
+      const groupIndex = app.groups.findIndex(
+        (group) => group.id === message.group_id
+      );
 
-    const groupIndex = app.groups.findIndex(
-      (group) => group.id === message.Private.group_id
-    );
-
-    // First time store user. This stuff is whack
-    setApp("groups", groupIndex, "messages", (messages) => [
-      ...messages,
-      message.Private.message,
-    ]);
+      // First time store user. This stuff is whack
+      setApp("groups", groupIndex, "messages", (messages) => [
+        ...messages,
+        message.message,
+      ]);
+      break;
   }
 }
 
@@ -193,7 +187,9 @@ const socket = createMemo(
 
 /**
  * TODO these need to be derivated from the rust types which should be automated
- * @typedef { {Welcome: { group_id: string}} | {Private: {group_id: string, message: string}} } Message
+ * @typedef {{type: "Welcome", group_id: string, friend: Friend}} Welcome
+ * @typedef {{type: "Private", group_id: string, message: string}} Private
+ * @typedef {Welcome | Private} Message
  */
 
 /**

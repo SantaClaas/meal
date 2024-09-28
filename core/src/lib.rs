@@ -1,5 +1,5 @@
 use core::str;
-use std::{collections::HashMap, sync::OnceLock};
+use std::{collections::HashMap, sync::OnceLock, vec::IntoIter};
 
 use base64::prelude::*;
 use nanoid::nanoid;
@@ -7,12 +7,14 @@ use openmls::prelude::*;
 use openmls_basic_credential::SignatureKeyPair;
 use openmls_rust_crypto::OpenMlsRustCrypto;
 use openmls_traits::types::Ciphersuite;
-use tls_codec::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
+use tls_codec::{Deserialize as _, Serialize as _};
 use wasm_bindgen::prelude::*;
 
 pub(crate) const CIPHERSUITE: Ciphersuite =
     Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 
+/// Shared variable to use for encoding and decoding id
 const ID_LENGTH: usize = 21;
 
 fn provider() -> &'static impl OpenMlsProvider {
@@ -37,18 +39,85 @@ pub struct Client {
 
 #[wasm_bindgen(getter_with_clone)]
 pub struct DecodedPackage {
-    /// The id of the client that sent the key package
-    pub client_id: String,
-    pub friend_name: Option<String>,
+    /// The friend that sent the key package
+    pub friend: Friend,
     key_package: KeyPackage,
 }
 
-#[derive(serde::Serialize)]
-pub enum Message {
-    Private { group_id: String, message: String },
-    Welcome { group_id: String },
+#[derive(serde::Serialize, Clone)]
+#[wasm_bindgen(getter_with_clone)]
+pub struct Friend {
+    pub id: String,
+    pub name: Option<String>,
 }
 
+#[derive(serde::Serialize)]
+#[serde(tag = "type")]
+enum Message {
+    Private { group_id: String, message: String },
+    Welcome { group_id: String, friend: Friend },
+}
+
+/// The result of processing a welcome message and the introduction message
+#[deprecated = "Use GroupInvite instead"]
+#[derive(Serialize)]
+struct GroupInvite {
+    /// The id of the group that was created from the welcome message
+    group_id: String,
+    /// The id of the client that sent the welcome message
+    client_id: String,
+    /// The name of the client that sent the welcome message
+    name: Option<String>,
+}
+
+fn encode_application_id(mut id: String, name: &Option<String>) -> Extensions {
+    if let Some(name) = name {
+        id.push_str(name);
+    }
+
+    Extensions::single(Extension::ApplicationId(ApplicationIdExtension::new(
+        id.as_bytes(),
+    )))
+}
+
+fn decode_application_id(application_id: &ApplicationIdExtension) -> (String, Option<String>) {
+    let string = str::from_utf8(application_id.as_slice()).unwrap();
+    if string.len() > ID_LENGTH {
+        (
+            string[..ID_LENGTH].to_owned(),
+            Some(string[ID_LENGTH..].to_owned()),
+        )
+    } else {
+        (string.to_owned(), None)
+    }
+}
+
+/// Defines a message sent on the application layer.
+/// This gets transported using MLS but is otherwise independent of the protocol.
+#[derive(Serialize, Deserialize)]
+enum ApplicationMessage {
+    //TODO ask if there is really no possibility to include information in the welcome
+    /// This message is sent as a follow up to a welcome message to introduce the sender of the welcome message to
+    /// the receiver. Otherwise the client would not know who send the welcome as that information can not be included
+    /// in the welcome message (AFAIK). The client needs to know who sent the welcome to be able to know where to send
+    /// responses and other messages back to.
+    /// <details>
+    /// <summary>Discussion</summary>
+    /// The delivery service could include the sender information as it knows at what endpoint the message is received
+    /// and only clients authorized to send messages should be able to send messages. But we want the delivery service
+    /// to be involved as little as possible. This also makes the implementation less reliant on the delivery service.
+    ///
+    /// It is also not possible to tie the welcome to the introduction, because nesting the welcome in the introduction
+    /// would lead to them arriving out of order and it seems that the application message is not decryptable when the
+    /// welcome hasn't been processed yet.
+    /// </details>
+    Introduction {
+        /// The client id of the sender that send the welcome message
+        id: String,
+        /// The name of the user using the client that send the welcome message
+        name: Option<String>,
+    },
+}
 #[wasm_bindgen]
 impl Client {
     #[wasm_bindgen(constructor)]
@@ -98,14 +167,7 @@ impl Client {
         //TODO and remove things that do not change or where we use a default
         //TODO adding postcard as dependency yields 9-10% smaller serialized + base64 encoded key packages
 
-        let mut id = self.id.clone();
-        if let Some(name) = name {
-            id.push_str(&name);
-        }
-
-        let extensions = Extensions::single(Extension::ApplicationId(ApplicationIdExtension::new(
-            id.as_bytes(),
-        )));
+        let extensions = encode_application_id(self.id.clone(), &name);
 
         // Add identifier to help users identify the origin of the key package / invitation
         // Details: https://www.rfc-editor.org/rfc/rfc9420.html#section-5.3.3
@@ -122,16 +184,26 @@ impl Client {
 
         self.key_packages.push(bundle.key_package().clone());
 
-        let data = bundle.key_package().tls_serialize_detached().unwrap();
+        // Using postcard reduces the size by around 40 bytes or 9-10%
+        // This might not be worth the dependency but we are using it for application messages anyways
+        let data = postcard::to_allocvec(bundle.key_package()).unwrap();
         BASE64_URL_SAFE_NO_PAD.encode(data)
     }
 
-    //TODO use Box<[u8]> as return type to get Uint8Array in JS
-    //TODO accept &[u8] from Uint8Array in JS
-    pub fn join_group(&mut self, encoded_welcome: String) -> String {
+    #[deprecated = "Use process_welcome instead"]
+    pub fn join_group(&mut self, encoded_welcome: String) -> JsValue {
         let data = BASE64_URL_SAFE_NO_PAD.decode(encoded_welcome).unwrap();
-        let message = MlsMessageIn::tls_deserialize_exact_bytes(&data).unwrap();
-        let MlsMessageBodyIn::Welcome(welcome) = message.extract() else {
+        let messages = TlsVecU8::<MlsMessageIn>::tls_deserialize_exact_bytes(&data)
+            .unwrap()
+            .into_vec();
+
+        let (welcome, introduction) = {
+            let mut iterator = messages.into_iter();
+            (iterator.next().unwrap(), iterator.next().unwrap())
+        };
+
+        // Step 1: Process welcome
+        let MlsMessageBodyIn::Welcome(welcome) = welcome.extract() else {
             panic!("Did not expect non welcome");
         };
 
@@ -141,21 +213,45 @@ impl Client {
             .use_ratchet_tree_extension(true)
             .build();
 
-        let group = StagedWelcome::new_from_welcome(provider, &configuration, welcome, None)
+        let mut group = StagedWelcome::new_from_welcome(provider, &configuration, welcome, None)
             .unwrap()
             .into_group(provider)
             .unwrap();
 
-        let encoded = BASE64_URL_SAFE_NO_PAD.encode(group.group_id().as_slice());
+        // Step 2: Process introduction
+        let MlsMessageBodyIn::PrivateMessage(introduction) = introduction.extract() else {
+            todo!("Did not expect non application message");
+        };
 
+        // Extract introduction application message with new group now
+        let introduction = group.process_message(provider, introduction).unwrap();
+        let ProcessedMessageContent::ApplicationMessage(content) = introduction.into_content()
+        else {
+            todo!("Handle processed message content");
+        };
+
+        let ApplicationMessage::Introduction { id, name } =
+            postcard::from_bytes(&content.into_bytes()).unwrap();
+        // Extract id before moving group into map
+        let js_group_id = BASE64_URL_SAFE_NO_PAD.encode(group.group_id().as_slice());
+        // Add group after introduction has been processed
         self.groups.insert(group.group_id().clone(), group);
-        encoded
+
+        serde_wasm_bindgen::to_value(&GroupInvite {
+            group_id: js_group_id,
+            client_id: id,
+            name,
+        })
+        .unwrap()
     }
 
     pub fn create_group(&mut self) -> String {
         let provider = provider();
         let group = MlsGroup::builder()
             .use_ratchet_tree_extension(true)
+            // //TODO should we enforce usage of application id in the capabilities?
+            // .with_leaf_node_extensions(encode_application_id(self.id.clone(), &self.user.name))
+            // .unwrap()
             .build(
                 provider,
                 &self.user.signature_key,
@@ -198,7 +294,23 @@ impl Client {
         // Process it on our end
         group.merge_pending_commit(provider).unwrap();
 
-        welcome.tls_serialize_detached().unwrap()
+        // Create introduction message as welcome does not include enough information that are needed on the application layer
+        let introduction = ApplicationMessage::Introduction {
+            id: self.id.clone(),
+            name: self.user.name.clone(),
+        };
+        let data = postcard::to_allocvec(&introduction).unwrap();
+        let message = group
+            .create_message(provider, &self.user.signature_key, &data)
+            .unwrap();
+
+        //TODO the introduction has to be sent to all group members when we support multi user groups
+        // Batch send messages
+        //TODO test without vector and U8 slice variant
+        let mut vector = Vec::new();
+        vector.push(welcome);
+        vector.push(message);
+        TlsSliceU16(&vector).tls_serialize_detached().unwrap()
     }
 
     pub fn send_message(&mut self, group_id: String, message: String) -> Box<[u8]> {
@@ -209,6 +321,10 @@ impl Client {
         let message = group
             .create_message(provider, &self.user.signature_key, message.as_bytes())
             .unwrap();
+
+        // We can batch send messages so we need to wrap it in a collection
+        let messages = &[message];
+        let message = TlsSliceU16(messages);
 
         let serialized = message.tls_serialize_detached().unwrap();
         serialized.into_boxed_slice()
@@ -257,34 +373,57 @@ impl Client {
         }
     }
 
-    fn process_welcome(&mut self, welcome: Welcome) -> Message {
+    fn process_welcome(&mut self, welcome: Welcome, mut rest: IntoIter<MlsMessageIn>) -> Message {
+        let introduction = rest.next().unwrap();
+
+        // Step 1: Process welcome
         let provider = provider();
         let configuration = MlsGroupJoinConfig::builder()
             .use_ratchet_tree_extension(true)
             .build();
 
-        let staged =
-            StagedWelcome::new_from_welcome(provider, &configuration, welcome, None).unwrap();
+        let mut group = StagedWelcome::new_from_welcome(provider, &configuration, welcome, None)
+            .unwrap()
+            .into_group(provider)
+            .unwrap();
 
-        let group = staged.into_group(provider).unwrap();
+        // Step 2: Process introduction
+        let MlsMessageBodyIn::PrivateMessage(introduction) = introduction.extract() else {
+            todo!("Did not expect non application message");
+        };
 
-        let group_id = group.group_id();
+        // Extract introduction application message with new group now
+        let introduction = group.process_message(provider, introduction).unwrap();
+        let ProcessedMessageContent::ApplicationMessage(content) = introduction.into_content()
+        else {
+            todo!("Handle processed message content");
+        };
+
+        let ApplicationMessage::Introduction { id, name } =
+            postcard::from_bytes(&content.into_bytes()).unwrap();
+
         // Need to create id before moving group into map
-        let js_group_id = BASE64_URL_SAFE_NO_PAD.encode(group_id.as_slice());
+        let js_group_id = BASE64_URL_SAFE_NO_PAD.encode(group.group_id().as_slice());
+        // Add group after introduction has been processed
+        self.groups.insert(group.group_id().clone(), group);
 
-        // self.groups.insert(group_id.clone(), group);
-        // js_group_id
         Message::Welcome {
+            friend: Friend { id, name },
             group_id: js_group_id,
         }
     }
 
-    pub fn process_message(&mut self, message: &[u8]) -> JsValue {
-        let message = MlsMessageIn::tls_deserialize_exact_bytes(message).unwrap();
+    pub fn process_message(&mut self, data: &[u8]) -> JsValue {
+        let mut messages = TlsVecU16::<MlsMessageIn>::tls_deserialize_exact_bytes(data)
+            .unwrap()
+            .into_vec()
+            .into_iter();
 
+        // let message = MlsMessageIn::tls_deserialize_exact_bytes(data).unwrap();
+        let message = messages.next().unwrap();
         let value = match message.extract() {
             MlsMessageBodyIn::PrivateMessage(message) => self.process_private_message(message),
-            MlsMessageBodyIn::Welcome(welcome) => self.process_welcome(welcome),
+            MlsMessageBodyIn::Welcome(welcome) => self.process_welcome(welcome, messages),
             MlsMessageBodyIn::PublicMessage(_public_message_in) => todo!("Public message in"),
             MlsMessageBodyIn::GroupInfo(_verifiable_group_info) => todo!("Group info in"),
             MlsMessageBodyIn::KeyPackage(_key_package_in) => todo!("key package in"),
@@ -297,7 +436,8 @@ impl Client {
 #[wasm_bindgen]
 pub fn decode_key_package(encoded: &str) -> DecodedPackage {
     let data = BASE64_URL_SAFE_NO_PAD.decode(encoded).unwrap();
-    let package = KeyPackageIn::tls_deserialize_exact_bytes(&data).unwrap();
+    // let package = KeyPackageIn::tls_deserialize_exact_bytes(&data).unwrap();
+    let package: KeyPackageIn = postcard::from_bytes(&data).expect("Expected valid key package");
     let provider = provider();
 
     let validated = package
@@ -319,8 +459,10 @@ pub fn decode_key_package(encoded: &str) -> DecodedPackage {
     };
 
     DecodedPackage {
-        client_id: id,
-        friend_name,
+        friend: Friend {
+            id,
+            name: friend_name,
+        },
         key_package: validated,
     }
 }
