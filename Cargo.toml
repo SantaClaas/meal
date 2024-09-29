@@ -1,3 +1,3 @@
 [workspace]
-members = ["delivery-service", "core"]
+members = ["delivery-service", "core", "pumpe"]
 resolver = "2"
