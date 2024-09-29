@@ -49,6 +49,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          # Min caches only epxorted layers. Max caches all layers https://docs.docker.com/build/cache/backends/#cache-mode
+          cache-to: type=gha,mode=max
 
       # Would be cool, but doesn't play nice with cloud providers. They get confused 😕
       # - name: Generate artifact attestation
