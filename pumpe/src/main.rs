@@ -1,30 +1,16 @@
-use std::{
-    collections::{HashSet, VecDeque},
-    env,
-    fmt::format,
-    fs,
-    path::{Path, PathBuf},
-    rc::Rc,
-    sync::Arc,
-};
+use std::{collections::VecDeque, fs, path::Path, rc::Rc};
 
 use axum::{
-    body::{Body, Bytes},
-    extract::{self, path, State},
-    http::{self, header, request},
-    response::IntoResponse,
-    routing::get,
+    body::Body,
+    http::{self, header},
     Router,
 };
 use camino::Utf8PathBuf;
 use clap::{error::ErrorKind, CommandFactory, Parser};
 use http_body_util::BodyExt;
 use thiserror::Error;
-use tower::{ServiceBuilder, ServiceExt};
-use tower_http::{
-    compression::{Compression, CompressionLayer},
-    services::ServeDir,
-};
+use tower::ServiceExt;
+use tower_http::{compression::CompressionLayer, services::ServeDir};
 
 #[derive(Parser, Debug)]
 #[command()]

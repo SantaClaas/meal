@@ -8,7 +8,7 @@ use openmls_basic_credential::SignatureKeyPair;
 use openmls_rust_crypto::OpenMlsRustCrypto;
 use openmls_traits::types::Ciphersuite;
 use serde::{Deserialize, Serialize};
-use tls_codec::{Deserialize as _, Serialize as _};
+use tls_codec::Serialize as _;
 use wasm_bindgen::prelude::*;
 
 pub(crate) const CIPHERSUITE: Ciphersuite =
