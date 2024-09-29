@@ -86,24 +86,9 @@ async fn main() -> Result<(), PumpeError> {
     // List all files in directory
     let files = visit_directory(directory.clone())?;
 
-    //TODO use service builder
     let app: Router = Router::new()
-        // .fallback_service(ServeDir::new(arguments.directory.as_path()))
         .fallback_service(ServeDir::new(directory.clone()))
         .layer(CompressionLayer::new());
-
-    // app.map_request()
-    // let request = http::Request::get("/app/dist/index.html")
-    //     .header(header::CONTENT_ENCODING, "gzip")
-    //     .body(Body::empty())
-    //     .unwrap();
-    // let result = app.clone().oneshot(request).await;
-    // println!("Result: {:?}", result);
-
-    // Strip source path as that is used as the root to serve files from
-    // for file in files.iter_mut() {
-    //     *file = file.strip_prefix(&path).unwrap().to_path_buf();
-    // }
 
     fn request(path: &str, encoding: &str) -> http::Request<Body> {
         http::Request::get(path)
