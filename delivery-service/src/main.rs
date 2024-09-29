@@ -29,6 +29,10 @@ struct AppState {
 /// proxy delivery service requests for a better development experience.
 fn serve_client() -> ServeDir<SetStatus<ServeFile>> {
     ServeDir::new("./app")
+        .precompressed_br()
+        .precompressed_deflate()
+        .precompressed_gzip()
+        .precompressed_zstd()
         // If the route is a client side navigation route, this will serve the app and let the app router take over the
         // path handling after the app is loaded
         .not_found_service(ServeFile::new("./app/index.html"))
