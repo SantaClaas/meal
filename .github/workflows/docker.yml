@@ -4,7 +4,7 @@ name: Create and publish docker image
 on:
   push:
     paths-ignore:
-      - ".github/deploy.yml"
+      - ".github/workflows/deploy.yml"
     branches:
       - main
 
