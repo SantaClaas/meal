@@ -25,8 +25,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
 
+      # Set driver to 'docker-container' instead of 'docker' as the latter does not work with GitHub Actions Cache
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db
         with:
           driver: docker-container
 
