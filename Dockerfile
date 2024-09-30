@@ -5,6 +5,7 @@ FROM rust:${RUST_VERSION} AS builder
 RUN USER=root cargo new --bin delivery-service
 RUN USER=root cargo new --name meal-core --lib core
 RUN USER=root cargo new --name pumpe --bin pumpe
+RUN mkdir tugboat
 # RUN USER=root cargo new --name pumpe --bin tugboat
 
 # Copy over manifests
