@@ -1,42 +1,67 @@
 ARG RUST_VERSION=1.81
-#TODO test out creating a base image to build from to remove duplicated steps
-# Build core rust wasm
-FROM rust:${RUST_VERSION} AS build-core
-WORKDIR /core-build
+
+FROM rust:${RUST_VERSION} AS builder
 # Create a new empty shell project to enable downloading dependencies before building for caching
 RUN USER=root cargo new --bin delivery-service
 RUN USER=root cargo new --name meal-core --lib core
-
-# Install wasm-pack
-#TODO improve this step as it builds from source and is slow but downloading built binary would need hash check and might change
-RUN cargo install wasm-pack
+RUN USER=root cargo new --name pumpe --bin pumpe
 
 # Copy over manifests
 COPY ./Cargo.lock ./Cargo.lock
 COPY ./Cargo.toml ./Cargo.toml
 COPY ./core/Cargo.toml ./core/Cargo.toml
-# Need to copy both or cargo workspace will not find it and fail
 COPY ./delivery-service/Cargo.toml ./delivery-service/Cargo.toml
+COPY ./pumpe/Cargo.toml ./pumpe/Cargo.toml
 
 # Build and cache the dependencies
-RUN cargo build --package meal-core --release
-RUN rm core/src/*.rs
+RUN cargo build  --release
 
-# Copy over the source to build the library
+# Remove build artifacts that are not needed in next steps
+RUN rm ./target/release/deps/delivery_service*
+RUN rm ./target/release/deps/meal_core*
+RUN rm ./target/release/deps/pumpe*
+
+# Don't remove source code as that breaks building from cargo workspace
+# TODO test if true
+
+
+# Build core rust wasm
+FROM builder AS build-core
+
+# Install wasm-pack
+#TODO improve this step as it builds from source and is slow but downloading built binary would need hash check and might change
+RUN cargo install wasm-pack
+
+# Copy over the source code to build the library
+RUN rm core/src/*.rs
 COPY ./core/src ./core/src
 
 # Build the application
-RUN rm ./target/release/deps/meal_core*
 RUN wasm-pack build --release ./core
 
 
-# Build the app
-FROM node:21 AS build-app
-WORKDIR /app-build
 
+
+# Build tool to compress files
+FROM builder AS build-pumpe
+
+# Copy over the source code to build the application
+RUN rm ./pumpe/src/*.rs
+COPY ./pumpe/src ./pumpe/src
+
+# Build the application
+RUN cargo build --package pumpe --release
+
+
+
+
+# Build the app
+FROM node:lts AS build-app
+WORKDIR /app-build
 # Copy build artifacts from core rust wasm build
-COPY --from=build-core /core-build/core/pkg ./core/pkg
-RUN ls -la ./core/pkg
+COPY --from=build-core /core/pkg ./core/pkg
+# Copy tool to compress files
+COPY --from=build-pumpe /target/release/pumpe ./pumpe
 
 # Installs pnpm as it is set as package manager in package.json
 RUN corepack enable
@@ -59,40 +84,30 @@ COPY ./app ./app
 # Build and cache
 RUN pnpm run build
 
+# Compress files
+RUN ./pumpe ./app/dist
+
 
 
 
 # Build the delivery service containing the API and hosting the app
-FROM rust:${RUST_VERSION} AS build-delivery-service
+FROM builder AS build-delivery-service
 
-WORKDIR /delivery-service-build
-# Create a new empty shell project to enable downloading dependencies before building for caching
-RUN USER=root cargo new --bin delivery-service
-RUN USER=root cargo new --name meal-core --lib core
-
-# Copy over manifests
-COPY ./Cargo.lock ./Cargo.lock
-COPY ./Cargo.toml ./Cargo.toml
-COPY ./delivery-service/Cargo.toml ./delivery-service/Cargo.toml
-# Need to copy both or cargo workspace will not find it and fail
-COPY ./core/Cargo.toml ./core/Cargo.toml
-
-# Build and cache the dependencies
-RUN cargo build --package delivery-service --release
+# Copy over the source code to build the application
 RUN rm ./delivery-service/src/*.rs
-
-# Copy over the source to build the application
 COPY ./delivery-service/src ./delivery-service/src
 
 # Build the application
-RUN rm ./target/release/deps/delivery_service*
 RUN cargo build --package delivery-service --release
+
+
+
 
 # Final base image
 FROM debian:bookworm-slim AS final
 
 # Copy the build artifacts from the build stage
-COPY --from=build-delivery-service /delivery-service-build/target/release/delivery-service .
+COPY --from=build-delivery-service /target/release/delivery-service .
 # The ./app directory is where the delivery service looks for when app static files are requested
 COPY --from=build-app /app-build/app/dist ./app
 
