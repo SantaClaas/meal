@@ -16,7 +16,7 @@ COPY ./pumpe/Cargo.toml ./pumpe/Cargo.toml
 # COPY ./tugboat/Cargo.toml ./tugboat/Cargo.toml
 
 # Build and cache the dependencies
-RUN cargo build --release --exclude tugboat
+RUN cargo build --release
 
 # Remove build artifacts that are not needed in next steps
 RUN rm ./target/release/deps/delivery_service*
