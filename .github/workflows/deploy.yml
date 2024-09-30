@@ -14,7 +14,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: development
-    if: github.event.registry_package.package_version.container_metadata.tag.name == 'meal'
+    if: github.event_name == 'workflow_dispatch' || github.event.registry_package.package_version.container_metadata.tag.name == 'meal'
     steps:
       - name: deploy
         run: 'curl --fail --show-error -H "Authorization: Bearer ${{ secrets.WATCHTOWER_TOKEN }}" https://watchtower.claa.sh/v1/update'
