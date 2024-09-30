@@ -4,12 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-axum = { version = "0.7.6", features = ["macros", "ws"] }
-openmls = "0.6.0"
-serde = { version = "1.0.210", features = ["derive", "rc"] }
-thiserror = "1.0.64"
-tls_codec = "0.4.1"
-tokio = { version = "1.40.0", features = ["full"] }
-tower-http = { version = "0.6.1", features = ["fs"] }
+axum = { workspace = true, features = ["macros", "ws"] }
+serde = { workspace = true, features = ["derive", "rc"] }
+thiserror = { workspace = true }
+tls_codec = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+tower-http = { workspace = true, features = ["fs"] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }

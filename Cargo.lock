@@ -575,7 +575,6 @@ name = "delivery-service"
 version = "0.1.0"
 dependencies = [
  "axum",
- "openmls",
  "serde",
  "thiserror",
  "tls_codec",

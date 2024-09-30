@@ -1,3 +1,10 @@
 [workspace]
 members = ["delivery-service", "core", "pumpe", "tugboat"]
 resolver = "2"
+
+[workspace.dependencies]
+axum = "0.7.7"
+serde = "1.0.210"
+thiserror = "1.0.64"
+tokio = "1.40.0"
+tower-http = "0.6.1"
