@@ -5,6 +5,7 @@ FROM rust:${RUST_VERSION} AS builder
 RUN USER=root cargo new --bin delivery-service
 RUN USER=root cargo new --name meal-core --lib core
 RUN USER=root cargo new --name pumpe --bin pumpe
+# RUN USER=root cargo new --name pumpe --bin tugboat
 
 # Copy over manifests
 COPY ./Cargo.lock ./Cargo.lock
@@ -12,9 +13,10 @@ COPY ./Cargo.toml ./Cargo.toml
 COPY ./core/Cargo.toml ./core/Cargo.toml
 COPY ./delivery-service/Cargo.toml ./delivery-service/Cargo.toml
 COPY ./pumpe/Cargo.toml ./pumpe/Cargo.toml
+# COPY ./tugboat/Cargo.toml ./tugboat/Cargo.toml
 
 # Build and cache the dependencies
-RUN cargo build  --release
+RUN cargo build --release --exclude tugboat
 
 # Remove build artifacts that are not needed in next steps
 RUN rm ./target/release/deps/delivery_service*
