@@ -4,3 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+askama = "0.12.1"
+askama_axum = "0.4.0"
+axum.workspace = true
+bollard = "0.17.1"
+serde.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tokio-stream = "0.1.16"
+tower-http = { workspace = true, features = ["auth", "fs"] }
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
