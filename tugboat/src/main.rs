@@ -35,7 +35,24 @@ impl IntoResponse for TugError {
     }
 }
 
-async fn update_container(State(state): State<AppState>) -> Result<StatusCode, TugError> {
+enum UpdateResult {
+    Completed,
+    AlreadyStarted,
+}
+
+impl IntoResponse for UpdateResult {
+    fn into_response(self) -> axum::response::Response {
+        match self {
+            UpdateResult::Completed => StatusCode::OK.into_response(),
+            UpdateResult::AlreadyStarted => StatusCode::ACCEPTED.into_response(),
+        }
+    }
+}
+
+async fn update_container(
+    docker: &Docker,
+    update_lock: &Mutex<()>,
+) -> Result<UpdateResult, TugError> {
     // 1. Check if container already exists
     // 2. Create image
     //    This pulls the latest image
@@ -49,13 +66,12 @@ async fn update_container(State(state): State<AppState>) -> Result<StatusCode, T
     // Don't interfere with running updates. Could make things awkward
     // Technically the current update should be cancelled as it might have pulled the last image which is now outdated
     // but we don't expect so many updates to happen at the same time for this to become a problem
-    let Ok(_lock) = state.update_lock.try_lock() else {
+    let Ok(_lock) = update_lock.try_lock() else {
         tracing::debug!("Update already underway");
-        return Ok(StatusCode::ACCEPTED);
+        return Ok(UpdateResult::AlreadyStarted);
     };
 
     // Check if containers already exists
-    let docker = state.docker;
 
     let result = docker
         .inspect_container(CONTAINER_NAME, None::<InspectContainerOptions>)
@@ -111,7 +127,7 @@ async fn update_container(State(state): State<AppState>) -> Result<StatusCode, T
 
     if container_image_id.is_some_and(|id| id == new_id) {
         tracing::debug!("Container is up to date");
-        return Ok(StatusCode::OK);
+        return Ok(UpdateResult::Completed);
     }
 
     // Stop container if it exists
@@ -153,7 +169,7 @@ async fn update_container(State(state): State<AppState>) -> Result<StatusCode, T
 
     tracing::debug!("Started container");
 
-    Ok(StatusCode::OK)
+    Ok(UpdateResult::Completed)
 }
 
 fn set_up_docker() -> Result<Docker, bollard::errors::Error> {
@@ -169,6 +185,10 @@ fn set_up_docker() -> Result<Docker, bollard::errors::Error> {
     } else {
         Docker::connect_with_defaults()
     }
+}
+
+async fn update(State(state): State<AppState>) -> impl IntoResponse {
+    update_container(&state.docker, &state.update_lock).await
 }
 
 #[derive(Template, Default)]
@@ -232,12 +252,23 @@ async fn main() -> Result<(), TugError> {
     let token = std::env::var("TUGBOAT_TOKEN")?;
     tracing::info!("Setting up docker");
     let docker = set_up_docker()?;
+    let update_lock: Arc<Mutex<()>> = Arc::default();
     let state = AppState {
-        docker,
-        update_lock: Arc::default(),
+        docker: docker.clone(),
+        update_lock: update_lock.clone(),
     };
+
+    tokio::spawn(async move {
+        tracing::info!("Running initial update");
+        match update_container(&docker, update_lock.as_ref()).await {
+            Ok(UpdateResult::Completed) => tracing::info!("Initial update completed"),
+            Ok(UpdateResult::AlreadyStarted) => tracing::info!("Initial update already started"),
+            Err(error) => tracing::error!("Error running initial update: {error}"),
+        }
+    });
+
     let app = Router::new()
-        .route("/update", get(update_container))
+        .route("/update", get(update))
         .layer(ValidateRequestHeaderLayer::bearer(&token))
         .route("/", get(get_index))
         .with_state(state);
