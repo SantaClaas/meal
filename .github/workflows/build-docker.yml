@@ -2,11 +2,17 @@ name: Create and publish docker image
 
 # Configures this workflow to run every time a change is pushed to the branch called `release`.
 on:
-  push:
-    paths-ignore:
-      - ".github/workflows/deploy.yml"
-    branches:
-      - main
+  # push:
+  #   paths-ignore:
+  #     - "/.github/workflows/deploy.yml"
+  #   branches:
+  #     - main
+  # Make it reusable
+  workflow_call:
+    inputs:
+      target:
+        required: true
+        type: string
 
 # Defines two custom environment variables for the workflow. These are used for the Container registry domain, and a name for the Docker image that this workflow builds.
 env:
@@ -62,6 +68,8 @@ jobs:
           cache-from: type=gha
           # Min caches only epxorted layers. Max caches all layers https://docs.docker.com/build/cache/backends/#cache-mode
           cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+          target: ${{ inputs.target }}
 
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@v1
