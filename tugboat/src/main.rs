@@ -217,6 +217,7 @@ async fn main() -> Result<(), TugError> {
     std::env::set_var("TUGBOAT_TOKEN", "test");
 
     let token = std::env::var("TUGBOAT_TOKEN")?;
+    tracing::info!("Setting up docker");
     let docker = set_up_docker()?;
     let state = AppState { docker };
     let app = Router::new()
@@ -229,7 +230,7 @@ async fn main() -> Result<(), TugError> {
         .await
         .unwrap();
 
-    tracing::debug!("listening on http://{}", listener.local_addr().unwrap());
+    tracing::info!("listening on http://{}", listener.local_addr().unwrap());
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await
