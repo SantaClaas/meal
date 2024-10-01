@@ -1,6 +1,7 @@
-use std::{collections::HashMap, env::VarError, net::Ipv4Addr};
+use std::{collections::HashMap, env::VarError, net::Ipv4Addr, sync::Arc};
 
 use askama::Template;
+use askama_axum::IntoResponse;
 use axum::{extract::State, http::StatusCode, routing::get, Router};
 use bollard::{
     container::{
@@ -11,14 +12,14 @@ use bollard::{
     secret::{ContainerInspectResponse, ContainerState},
     Docker, API_DEFAULT_VERSION,
 };
-use tokio::signal;
+use tokio::{signal, sync::Mutex};
 use tokio_stream::StreamExt;
 use tower_http::validate_request::ValidateRequestHeaderLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[derive(thiserror::Error, Debug)]
 enum TugError {
-    #[error("Error reading togboat token: {0}")]
+    #[error("Error reading tugboat token: {0}")]
     ReadTokenError(#[from] VarError),
     #[error(transparent)]
     DockerError(#[from] bollard::errors::Error),
@@ -28,7 +29,13 @@ enum TugError {
     NoContainerId,
 }
 
-async fn update_container(docker: &Docker) -> Result<(), TugError> {
+impl IntoResponse for TugError {
+    fn into_response(self) -> axum::response::Response {
+        StatusCode::INTERNAL_SERVER_ERROR.into_response()
+    }
+}
+
+async fn update_container(State(state): State<AppState>) -> Result<StatusCode, TugError> {
     // 1. Check if container already exists
     // 2. Create image
     //    This pulls the latest image
@@ -39,7 +46,16 @@ async fn update_container(docker: &Docker) -> Result<(), TugError> {
     const CONTAINER_NAME: &str = "tugged-melt";
     const IMAGE_NAME: &str = "ghcr.io/santaclaas/meal:main";
 
+    // Don't interfere with running updates. Could make things awkward
+    // Technically the current update should be cancelled as it might have pulled the last image which is now outdated
+    // but we don't expect so many updates to happen at the same time for this to become a problem
+    let Ok(_lock) = state.update_lock.try_lock() else {
+        tracing::debug!("Update already underway");
+        return Ok(StatusCode::ACCEPTED);
+    };
+
     // Check if containers already exists
+    let docker = state.docker;
 
     let result = docker
         .inspect_container(CONTAINER_NAME, None::<InspectContainerOptions>)
@@ -95,7 +111,7 @@ async fn update_container(docker: &Docker) -> Result<(), TugError> {
 
     if container_image_id.is_some_and(|id| id == new_id) {
         tracing::debug!("Container is up to date");
-        return Ok(());
+        return Ok(StatusCode::OK);
     }
 
     // Stop container if it exists
@@ -137,7 +153,7 @@ async fn update_container(docker: &Docker) -> Result<(), TugError> {
 
     tracing::debug!("Started container");
 
-    Ok(())
+    Ok(StatusCode::OK)
 }
 
 fn set_up_docker() -> Result<Docker, bollard::errors::Error> {
@@ -164,16 +180,6 @@ async fn get_index(State(_state): State<AppState>) -> IndexTemplate {
     IndexTemplate
 }
 
-async fn update(State(state): State<AppState>) -> StatusCode {
-    match update_container(&state.docker).await {
-        Ok(()) => StatusCode::OK,
-        Err(error) => {
-            tracing::error!("Error starting container: {error}");
-            StatusCode::INTERNAL_SERVER_ERROR
-        }
-    }
-}
-
 async fn shutdown_signal() {
     let control_c = async {
         signal::ctrl_c()
@@ -196,10 +202,17 @@ async fn shutdown_signal() {
         _ = control_c => {},
         _ = terminate => {},
     }
+
+    tracing::info!("Termination requested. Shutting down");
 }
+
 #[derive(Clone)]
 struct AppState {
     docker: Docker,
+    // Is there a better primitive to have one task exlusively running the update
+    /// Lock to avoid multiple updates at the same time
+    /// Does not lock the docker instance as other tasks are still permitted
+    update_lock: Arc<Mutex<()>>,
 }
 
 #[tokio::main]
@@ -219,9 +232,12 @@ async fn main() -> Result<(), TugError> {
     let token = std::env::var("TUGBOAT_TOKEN")?;
     tracing::info!("Setting up docker");
     let docker = set_up_docker()?;
-    let state = AppState { docker };
+    let state = AppState {
+        docker,
+        update_lock: Arc::default(),
+    };
     let app = Router::new()
-        .route("/update", get(update))
+        .route("/update", get(update_container))
         .layer(ValidateRequestHeaderLayer::bearer(&token))
         .route("/", get(get_index))
         .with_state(state);
