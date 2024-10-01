@@ -36,9 +36,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
 
-      # For cross compiling taken from: https://docs.docker.com/build/ci/github-actions/multi-platform/
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
       # Set driver to 'docker-container' instead of 'docker' as the latter does not work with GitHub Actions Cache
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db
@@ -74,7 +71,8 @@ jobs:
           cache-from: type=gha
           # Min caches only epxorted layers. Max caches all layers https://docs.docker.com/build/cache/backends/#cache-mode
           cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
+          # Don't use linux/arm64 until dedicated runners for arm are available to speed this up
+          platforms: linux/amd64
           target: ${{ inputs.target }}
 
       - name: Generate artifact attestation
