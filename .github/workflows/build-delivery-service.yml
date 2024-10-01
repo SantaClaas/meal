@@ -1,0 +1,21 @@
+name: Build delivery service
+
+on:
+  push:
+    paths-ignore:
+      - ".github/workflows/deploy.yml"
+      - ".github/workflows/deploy.yml"
+      # Changes to tugoboat should not change the delivery service
+      - "tugboat/**"
+    # See "if:" below
+    # branches:
+    #   - main
+
+jobs:
+  call-build-docker:
+    # There is currently no way to combine event triggers "if branch is main AND file is changed"
+    if: github.ref_name == 'main'
+    uses: ./.github/workflows/build-docker.yml
+    with:
+      target: final-delivery-service
+      image_name: ${{ github.repository }}

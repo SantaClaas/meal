@@ -1,0 +1,26 @@
+name: Build delivery service
+
+on:
+  push:
+    paths:
+      # Build changes
+      - ".github/workflows/build-tugboat.yml"
+      - ".github/workflows/build-docker.yml"
+      - "!.github/workflows/deploy.yml"
+      # Source code and dependency changes
+      - "tugboat/**"
+      # Workspace dependencies might update
+      - "Cargo.toml"
+      - "Cargo.lock"
+    # See "if:" below
+    # branches:
+    #   - main
+
+jobs:
+  call-build-docker:
+    # There is currently no way to combine event triggers "if branch is main AND file is changed"
+    if: github.ref_name == 'main'
+    uses: ./.github/workflows/build-docker.yml
+    with:
+      target: final-tugboat
+      image_name: ${{ github.repository_owner }}/tugboat
