@@ -204,7 +204,6 @@ struct AppState {
 
 #[tokio::main]
 async fn main() -> Result<(), TugError> {
-    #[cfg(debug_assertions)]
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
@@ -214,6 +213,7 @@ async fn main() -> Result<(), TugError> {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
+    #[cfg(debug_assertions)]
     std::env::set_var("TUGBOAT_TOKEN", "test");
 
     let token = std::env::var("TUGBOAT_TOKEN")?;
