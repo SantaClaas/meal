@@ -11,6 +11,7 @@ use bollard::{
     secret::{ContainerInspectResponse, ContainerState},
     Docker, API_DEFAULT_VERSION,
 };
+use tokio::signal;
 use tokio_stream::StreamExt;
 use tower_http::validate_request::ValidateRequestHeaderLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -173,6 +174,29 @@ async fn update(State(state): State<AppState>) -> StatusCode {
     }
 }
 
+async fn shutdown_signal() {
+    let control_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("Failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("Failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = control_c => {},
+        _ = terminate => {},
+    }
+}
 #[derive(Clone)]
 struct AppState {
     docker: Docker,
@@ -206,6 +230,9 @@ async fn main() -> Result<(), TugError> {
         .unwrap();
 
     tracing::debug!("listening on http://{}", listener.local_addr().unwrap());
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .unwrap();
     Ok(())
 }

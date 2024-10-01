@@ -11,7 +11,10 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use tokio::sync::{mpsc, Mutex};
+use tokio::{
+    signal,
+    sync::{mpsc, Mutex},
+};
 use tower_http::{
     services::{ServeDir, ServeFile},
     set_status::SetStatus,
@@ -36,6 +39,30 @@ fn serve_client() -> ServeDir<SetStatus<ServeFile>> {
         // If the route is a client side navigation route, this will serve the app and let the app router take over the
         // path handling after the app is loaded
         .not_found_service(ServeFile::new("./app/index.html"))
+}
+
+async fn shutdown_signal() {
+    let control_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("Failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("Failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = control_c => {},
+        _ = terminate => {},
+    }
 }
 
 #[tokio::main]
@@ -68,7 +95,10 @@ async fn main() {
     .unwrap();
 
     tracing::debug!("listening on {}", listener.local_addr().unwrap());
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .unwrap();
 }
 
 /// This endpoint receives messages sent by clients to be delivered to other clients
