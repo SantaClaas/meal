@@ -226,7 +226,7 @@ async fn main() -> Result<(), TugError> {
         .route("/", get(get_index))
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind((Ipv4Addr::new(127, 0, 0, 1), 3001))
+    let listener = tokio::net::TcpListener::bind((Ipv4Addr::new(0, 0, 0, 0), 3001))
         .await
         .unwrap();
 
