@@ -21,6 +21,7 @@ jobs:
   build-and-push-image:
     runs-on: ubuntu-latest
     # Sets the permissions granted to the `GITHUB_TOKEN` for the actions in this job.
+    # This needs to be set in the calling workflows too
     permissions:
       packages: write
       contents: read

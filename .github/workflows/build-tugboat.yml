@@ -21,6 +21,11 @@ jobs:
     # There is currently no way to combine event triggers "if branch is main AND file is changed"
     if: github.ref_name == 'main'
     uses: ./.github/workflows/build-docker.yml
+    permissions:
+      packages: write
+      contents: read
+      attestations: write
+      id-token: write
     with:
       target: final-tugboat
       image_name: ${{ github.repository_owner }}/tugboat
