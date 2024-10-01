@@ -5,11 +5,11 @@ use askama_axum::IntoResponse;
 use axum::{extract::State, http::StatusCode, routing::get, Router};
 use bollard::{
     container::{
-        self, CreateContainerOptions, InspectContainerOptions, ListContainersOptions,
-        RemoveContainerOptions, StartContainerOptions, StopContainerOptions,
+        self, CreateContainerOptions, InspectContainerOptions, RemoveContainerOptions,
+        StartContainerOptions, StopContainerOptions,
     },
     image::CreateImageOptions,
-    secret::{ContainerInspectResponse, ContainerState},
+    secret::{HostConfig, PortBinding},
     Docker, API_DEFAULT_VERSION,
 };
 use tokio::{signal, sync::Mutex};
@@ -149,13 +149,27 @@ async fn update_container(
     }
 
     // Create container
+
     let options = Some(CreateContainerOptions {
         name: CONTAINER_NAME,
         platform: Some("linux/amd64"),
     });
 
+    let host_configuration = HostConfig {
+        port_bindings: Some(HashMap::from([(
+            "3000/tcp".to_string(),
+            Some(vec![PortBinding {
+                host_ip: Some("0.0.0.0".to_string()),
+                host_port: Some("3000".to_string()),
+            }]),
+        )])),
+        ..Default::default()
+    };
+
     let configuration = container::Config {
         image: Some(IMAGE_NAME),
+        // exposed_ports: Some(HashMap::from([("3000", HashMap::default())])),
+        host_config: Some(host_configuration),
         ..Default::default()
     };
     tracing::debug!("Creating container",);
