@@ -1,4 +1,4 @@
-name: Build delivery service
+name: Build tugboat
 
 on:
   push:
