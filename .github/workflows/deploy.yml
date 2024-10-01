@@ -13,7 +13,9 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: development
+    environment:
+      name: development
+      url: https://melt.claa.sh/
     if: github.event_name == 'workflow_dispatch' || github.event.registry_package.package_version.container_metadata.tag.name == 'meal'
     steps:
       - name: deploy
