@@ -1,4 +1,4 @@
-/* @refresh reload */
+// /* @refresh reload */
 import { render } from "solid-js/web";
 import { Route, Router } from "@solidjs/router";
 import Index from "./routes/index";
