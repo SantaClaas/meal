@@ -6,7 +6,7 @@ concurrency:
 
 on:
   registry_package:
-    types: [published]
+    types: [updated]
   # Allow manual update
   workflow_dispatch:
 
