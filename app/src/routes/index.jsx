@@ -55,23 +55,40 @@ export default function () {
           <ol class="grid grid-cols-[auto_1fr_auto]">
             <For each={new Array(100)}>
               {() => (
-                <li class="ps-4 pe-6 grid grid-cols-subgrid col-span-3 gap-x-4 py-3 bg-light-surface dark:bg-dark-surface">
-                  <span class="size-10 bg-light-surface-container-high dark:bg-dark-surface-container-high rounded-full text-center content-center text-title-md text-light-on-surface dark:text-dark-on-surface">
-                    C
-                  </span>
-                  <hgroup>
-                    <h2 class="text-light-on-surface dark:text-dark-on-surface text-body-lg ">
-                      Headline
-                    </h2>
-                    <p class="text-light-on-surface-variant dark:text-dark-on-surface-variant line-clamp-1 text-ellipsis text-body-md">
-                      Supporting text that is long enough to fill up multiple
-                      lines
-                      {/* Supporting text */}
+                <li class="contents">
+                  <a
+                    href="#"
+                    class="ps-4 pe-6 grid grid-cols-subgrid col-span-3 gap-x-4 py-3 bg-light-surface dark:bg-dark-surface group
+                  hover:bg-[color-mix(in_srgb,theme(colors.light.surface),theme(colors.light.on-surface)_8%)]
+                  hover:dark:bg-[color-mix(in_srgb,theme(colors.dark.surface),theme(colors.dark.on-surface)_8%)]
+                  focus-visible:outline-3 focus-visible:outline-offset-0 focus-visible:outline-light-secondary dark:focus-visible:outline-dark-secondary
+                  focus-visible:bg-[color-mix(in_srgb,theme(colors.light.surface),theme(colors.light.on-surface)_10%)]
+                  focus-visible:dark:bg-[color-mix(in_srgb,theme(colors.dark.surface),theme(colors.dark.on-surface)_10%)]
+                  active:bg-[color-mix(in_srgb,theme(colors.light.surface),theme(colors.light.on-surface)_10%)]
+                  active:dark:bg-[color-mix(in_srgb,theme(colors.dark.surface),theme(colors.dark.on-surface)_10%)]"
+                  >
+                    <span class="size-10 bg-light-surface-container-high dark:bg-dark-surface-container-high rounded-full text-center content-center text-title-md text-light-on-surface dark:text-dark-on-surface">
+                      C
+                    </span>
+                    <hgroup>
+                      <h2 class="text-light-on-surface dark:text-dark-on-surface text-body-lg ">
+                        Headline
+                      </h2>
+                      <p
+                        class="text-light-on-surface-variant dark:text-dark-on-surface-variant line-clamp-1 text-ellipsis text-body-md group-hover:text-light-on-surface dark:group-hover:text-dark-on-surface
+                        group-focus-visible:text-light-on-surface dark:group-focus-visible:text-dark-on-surface
+                        group-active:text-light-on-surface dark:group-active:text-dark-on-surface
+           "
+                      >
+                        Supporting text that is long enough to fill up multiple
+                        lines
+                        {/* Supporting text */}
+                      </p>
+                    </hgroup>
+                    <p class="text-light-on-surface-variant dark:text-dark-on-surface-variant text-label-sm">
+                      Now
                     </p>
-                  </hgroup>
-                  <p class="text-light-on-surface-variant dark:text-dark-on-surface-variant text-label-sm">
-                    Now
-                  </p>
+                  </a>
                 </li>
               )}
             </For>
