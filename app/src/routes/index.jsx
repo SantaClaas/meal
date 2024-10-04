@@ -23,7 +23,7 @@ export default function () {
     >
       <>
         <TopAppBar
-          header="Meal"
+          header="Melt"
           trailingAction={
             <button
               onClick={() => {
