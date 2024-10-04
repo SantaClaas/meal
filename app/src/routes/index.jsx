@@ -60,7 +60,7 @@ export default function () {
                     C
                   </span>
                   <hgroup>
-                    <h2 class="text-light-on-surface dark:text-dark-on-surface-variant text-body-lg ">
+                    <h2 class="text-light-on-surface dark:text-dark-on-surface text-body-lg ">
                       Headline
                     </h2>
                     <p class="text-light-on-surface-variant dark:text-dark-on-surface-variant line-clamp-1 text-ellipsis text-body-md">
