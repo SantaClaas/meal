@@ -23,7 +23,7 @@ export default function ({ setName }) {
   }
 
   return (
-    <main class="h-dvh grid content-end sm:content-center px-4 sm:px-6 pb-4 sm:pb-6 ">
+    <main class="h-dvh grid content-end sm:content-center px-4 sm:px-6 pb-4 sm:pb-6">
       <hgroup class="sm:mx-auto sm:w-full sm:max-w-sm text-center">
         <img
           class="mx-auto h-10 w-auto"
@@ -62,6 +62,7 @@ export default function ({ setName }) {
           />
         </label>
 
+        {/* Overengineered buttons styles is just fun. Some of this should probably be done in CSS or added Tailwind CSS utilitties. Follows Material You Filled Button specification*/}
         <button
           type="submit"
           class="w-full rounded-full bg-light-primary dark:bg-dark-primary px-6 py-2.5 text-label-lg font-label-lg leading-label-lg
