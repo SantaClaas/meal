@@ -8,29 +8,4 @@
   :root {
     @apply bg-light-surface-container dark:bg-dark-surface-container text-light-on-surface dark:text-dark-on-surface caret-light-primary dark:caret-dark-primary accent-light-primary dark:accent-dark-primary selection:bg-light-primary dark:selection:bg-dark-primary selection:text-light-on-primary dark:selection:text-dark-on-primary;
   }
-
-  @keyframes trigger {
-    to {
-      --is-scrolled: true;
-    }
-  }
-
-  body {
-    animation: trigger linear both;
-    animation-range: 0 1px;
-    animation-timeline: scroll();
-  }
-
-  .top-app-bar {
-    @apply transition-colors ease-decelerate duration-medium-1 bg-dark-surface;
-  }
-
-  @container style(--is-scrolled: true) {
-    .top-app-bar {
-      @apply bg-dark-surface-container;
-    }
-  }
-}
-
-@layer utilities {
 }
