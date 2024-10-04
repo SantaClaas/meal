@@ -1,3 +1,4 @@
+// @ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
 /** @import { JSX, VoidProps } from "solid-js" */
 
 /**
