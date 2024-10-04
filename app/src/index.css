@@ -6,8 +6,37 @@
   /* Just some fun base styles that are global */
   /* surface container color is the background of the page to have it as background for the navigation elements */
   :root {
-    @apply bg-light-surface-container dark:bg-dark-surface-container text-light-on-surface dark:text-dark-on-surface
-    caret-light-primary dark:caret-dark-primary accent-light-primary dark:accent-dark-primary
-    selection:bg-light-primary dark:selection:bg-dark-primary selection:text-light-on-primary dark:selection:text-dark-on-primary;
+    @apply bg-light-surface-container dark:bg-dark-surface-container text-light-on-surface dark:text-dark-on-surface caret-light-primary dark:caret-dark-primary accent-light-primary dark:accent-dark-primary selection:bg-light-primary dark:selection:bg-dark-primary selection:text-light-on-primary dark:selection:text-dark-on-primary;
+  }
+}
+
+@layer utilities {
+  .elevate {
+    animation: elevate linear both;
+  }
+
+  .dark-elevate {
+    animation: dark-elevate linear both;
+  }
+
+  @supports (animation-timeline: scroll()) {
+    /* Animation to elevate top app bar sticking at top to above (z-axis) content when scrolled */
+    @keyframes elevate {
+      to {
+        @apply bg-light-surface-container;
+      }
+    }
+
+    @keyframes dark-elevate {
+      to {
+        @apply bg-dark-surface-container;
+      }
+    }
+
+    .elevate,
+    .dark-elevate {
+      animation-range: 0 var(--h);
+      animation-timeline: scroll();
+    }
   }
 }

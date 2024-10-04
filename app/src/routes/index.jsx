@@ -55,8 +55,8 @@ export default function () {
           <ol class="grid grid-cols-[auto_1fr_auto]">
             <For each={new Array(100)}>
               {() => (
-                <li class="ps-4 pe-6 grid grid-cols-subgrid col-span-3 gap-x-4 py-3">
-                  <span class="size-10 bg-dark-surface-container-high rounded-full text-center content-center text-title-md text-light-on-surface dark:text-dark-on-surface">
+                <li class="ps-4 pe-6 grid grid-cols-subgrid col-span-3 gap-x-4 py-3 bg-light-surface dark:bg-dark-surface">
+                  <span class="size-10 bg-light-surface-container-high dark:bg-dark-surface-container-high rounded-full text-center content-center text-title-md text-light-on-surface dark:text-dark-on-surface">
                     C
                   </span>
                   <hgroup>
