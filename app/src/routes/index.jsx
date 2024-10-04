@@ -50,9 +50,11 @@ export default function () {
         {/* <h1>Welcome {app.name}</h1> */}
         {/* <a href="/invite">Invite</a> */}
         {/* </main> */}
-
-        <main>
-          <ol class="grid grid-cols-[auto_1fr_auto]">
+        {/* Medium: 50/50 */}
+        {/* Expanded: Fixed pane should be 360dp by default */}
+        {/* Large & Extra large: Fixed pane should be 412dp by default */}
+        <main class="grid grid-cols-1 sm:grid-cols-2 sm:gap-x-6 md:grid-cols-[360px_1fr] lg:grid-cols-[412px_1fr] px-4 sm:px-6 pb-4 sm:pb-6">
+          <ol class="grid grid-cols-[auto_1fr_auto] rounded-medium overflow-hidden">
             <For each={new Array(100)}>
               {() => (
                 <li class="contents">
