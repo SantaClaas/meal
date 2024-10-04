@@ -52,7 +52,7 @@ export default function () {
         {/* </main> */}
 
         <main>
-          <ol class="grid grid-cols-[auto_1fr_auto] isolate">
+          <ol class="grid grid-cols-[auto_1fr_auto]">
             <For each={new Array(100)}>
               {() => (
                 <li class="contents">
@@ -61,7 +61,7 @@ export default function () {
                     class="ps-4 pe-6 grid grid-cols-subgrid col-span-3 gap-x-4 py-3 bg-light-surface dark:bg-dark-surface group
                   hover:bg-[color-mix(in_srgb,theme(colors.light.surface),theme(colors.light.on-surface)_8%)]
                   hover:dark:bg-[color-mix(in_srgb,theme(colors.dark.surface),theme(colors.dark.on-surface)_8%)]
-                  focus-visible:outline-[3px] focus-visible:z-10 focus-visible:outline-offset-0 focus-visible:outline-light-secondary dark:focus-visible:outline-dark-secondary
+                  focus-visible:outline-[3px] focus-visible:z-[1] focus-visible:outline-offset-0 focus-visible:outline-light-secondary dark:focus-visible:outline-dark-secondary
                   focus-visible:bg-[color-mix(in_srgb,theme(colors.light.surface),theme(colors.light.on-surface)_10%)]
                   focus-visible:dark:bg-[color-mix(in_srgb,theme(colors.dark.surface),theme(colors.dark.on-surface)_10%)]
                   active:bg-[color-mix(in_srgb,theme(colors.light.surface),theme(colors.light.on-surface)_10%)]
