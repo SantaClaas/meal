@@ -87,8 +87,7 @@ export default function Index() {
   }
 
   // Drag based on https://jsfiddle.net/thatOneGuy/u5bvwh8m/16/
-  /** @param {Parameters<JSX.EventHandler<HTMLButtonElement, MouseEvent>>[0]} event */
-  function handleMouseDown(event) {
+  function handleMouseDown() {
     const controller = new AbortController();
 
     document.addEventListener("mousemove", handleMouseMove, {
