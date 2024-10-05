@@ -60,7 +60,7 @@ export default function () {
                 <li class="contents">
                   <a
                     href="#"
-                    class="ps-4 pe-6 grid grid-cols-subgrid col-span-3 gap-x-4 py-3 bg-light-surface dark:bg-dark-surface group
+                    class="ps-4 pe-6 grid grid-cols-subgrid col-span-3 gap-x-4 py-2 items-center bg-light-surface dark:bg-dark-surface group
                   hover:bg-[color-mix(in_srgb,theme(colors.light.surface),theme(colors.light.on-surface)_8%)]
                   hover:dark:bg-[color-mix(in_srgb,theme(colors.dark.surface),theme(colors.dark.on-surface)_8%)]
                   focus-visible:outline-[3px] focus-visible:z-[1] focus-visible:outline-offset-0 focus-visible:outline-light-secondary dark:focus-visible:outline-dark-secondary
@@ -72,8 +72,8 @@ export default function () {
                     <span class="size-10 bg-light-surface-container-high dark:bg-dark-surface-container-high rounded-full text-center content-center text-title-md text-light-on-surface dark:text-dark-on-surface">
                       C
                     </span>
-                    <hgroup>
-                      <h2 class="text-light-on-surface dark:text-dark-on-surface text-body-lg ">
+                    <hgroup class="min-h-14 content-center">
+                      <h2 class="text-light-on-surface dark:text-dark-on-surface text-body-lg">
                         Headline
                       </h2>
                       <p
