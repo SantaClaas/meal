@@ -1,4 +1,4 @@
-name: Build delivery service
+name: Deploy delivery service
 
 on:
   push:
@@ -12,7 +12,7 @@ on:
     #   - main
 
 jobs:
-  call-build-docker:
+  build:
     # There is currently no way to combine event triggers "if branch is main AND file is changed"
     if: github.ref_name == 'main'
     uses: ./.github/workflows/build-docker.yml
@@ -24,3 +24,6 @@ jobs:
     with:
       target: final-delivery-service
       image_name: ${{ github.repository }}
+  deploy:
+    needs: build
+    uses: ./.github/workflows/deploy.yml
