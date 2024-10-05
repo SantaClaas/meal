@@ -13,6 +13,7 @@ export default {
     materialTailwind({
       source: "#0f172a",
     }),
+    // Scroll trigger plugin
     plugin(
       ({ addVariant, addUtilities }) => {
         // The variant makes this usable with all Tailwind CSS classes that you might want to trigger when the parent

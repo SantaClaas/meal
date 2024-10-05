@@ -6,6 +6,26 @@
   /* Just some fun base styles that are global */
   /* surface container color is the background of the page to have it as background for the navigation elements */
   :root {
+    color-scheme: light dark;
     @apply bg-light-surface-container dark:bg-dark-surface-container text-light-on-surface dark:text-dark-on-surface caret-light-primary dark:caret-dark-primary accent-light-primary dark:accent-dark-primary selection:bg-light-primary dark:selection:bg-dark-primary selection:text-light-on-primary dark:selection:text-dark-on-primary;
+  }
+
+  @property --pane-1-width {
+    syntax: "<length>";
+  }
+}
+
+@layer utilities {
+  /* Open to revert this if it is bad */
+  @supports (scrollbar-width: none) {
+    .scrollbar-none {
+      scrollbar-width: none;
+    }
+  }
+
+  @supports selector(::-webkit-scrollbar) {
+    .scrollbar-none::-webkit-scrollbar {
+      display: none;
+    }
   }
 }
