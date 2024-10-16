@@ -1,4 +1,11 @@
-import { createEffect, createSignal, For, Show } from "solid-js";
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  onMount,
+  Show,
+} from "solid-js";
 import Onboarding from "../components/Onboarding";
 import { useAppContext } from "../components/AppContext";
 import TopAppBar from "../components/TopAppBar";
@@ -25,76 +32,92 @@ function getPane1Width() {
   localStorage.setItem("--pane-1-width", value.toString());
   return value;
 }
+
+/**
+ *
+ * @param {Element} element
+ */
+function getPaddingY(element) {
+  const styles = getComputedStyle(element);
+  return parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight);
+}
+
 export default function Index() {
   const [app, setApp] = useAppContext();
 
   /** @type {HTMLDivElement | undefined} */
   let dragHandle;
-  /** @type {HTMLOListElement | undefined} */
-  let pane1;
+  /** @type {Signal<HTMLOListElement | undefined>} */
+  let [pane1, setPane1] = createSignal();
   /** @type {HTMLElement | undefined} */
   let pane2;
   // Get pane 1 width
-  const initialPane1Width = getPane1Width() ?? 0;
-  const [pane1Width, setPane1Width] = createSignal(initialPane1Width);
+  const initialHandleX = getPane1Width() ?? 0;
+
+  const [handleX, setHandleX] = createSignal(initialHandleX);
 
   const clampedWidth = () => {
-    if (pane1Width() < 0) {
+    if (handleX() < 0) {
       return 0;
     }
 
     if (pane2 !== undefined) {
-      const styles = getComputedStyle(pane2);
       let width = pane2?.clientWidth;
-      width -= parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight);
+      width -= getPaddingY(pane2);
       console.debug("Pane 2 width", width);
 
       // if (pane2?.clientWidth === 0) {
-      if (width === 0) {
-        //TODO
-        return pane1Width();
-      }
+      // if (width === 0) {
+      //   //TODO
+      //   return handleX();
+      // }
     }
+    const maxWidth = document.documentElement.clientWidth;
+    console.debug("Handle X", handleX());
 
-    return Math.max(0, pane1Width());
+    return Math.max(0, Math.min(maxWidth - 48 - 12, handleX()));
   };
 
   createEffect(() => {
-    // console.debug(pane1?.offsetWidth, pane2?.offsetWidth);
-
-    // if (pane1?.offsetWidth === 0 || pane2?.offsetWidth === 0) return;
-    // if (dragHandle === undefined) return;
-    // console.debug(clampedWidth());
-    // const rectanble = dragHandle.getBoundingClientRect();
-    // if (rectanble.right >= window.innerWidth) {
-    //   console.debug("Not enough space to show drag handle");
-    //   return;
-    // }
-    // console.debug(
-    //   "Bounding client rect",
-    //   rectanble.x,
-    //   rectanble.right,
-    //   rectanble.width
-    // );
-
     localStorage.setItem("--pane-1-width", clampedWidth().toString());
     document.body.style.setProperty("--pane-1-width", clampedWidth() + "px");
   });
 
-  /** @param {MouseEvent} event */
-  function handleMouseMove(event) {
-    setPane1Width((width) => width + event.movementX);
+  // const pane1X = () => {
+  //   console.debug("Getting pane 1 x", pane1()?.getBoundingClientRect());
+  //   return pane1()?.getBoundingClientRect().x;
+  // };
+
+  /** @type {number | undefined} */
+  let pane1X;
+  // Need to run on mount because getting boundling client rectangle will return 0 for x when set and updated through
+  // memorization
+  onMount(() => {
+    pane1X = pane1()?.getBoundingClientRect().x;
+    console.assert(pane1X !== undefined, "Pane 1 should be defined");
+  });
+
+  /** @param {PointerEvent} event */
+  function handlePointerMove(event) {
+    setHandleX((x) => {
+      // Pane 1 X is set on mount and user should not be able to move drag handle before mount
+      if (pane1X === undefined) throw new Error("Pane 1 X should be defined");
+      return event.clientX - pane1X - 12;
+      const newX = x + event.movementX;
+
+      return newX;
+    });
   }
 
   // Drag based on https://jsfiddle.net/thatOneGuy/u5bvwh8m/16/
-  function handleMouseDown() {
+  function handlePointerDown() {
     const controller = new AbortController();
 
-    document.addEventListener("mousemove", handleMouseMove, {
+    document.addEventListener("pointermove", handlePointerMove, {
       signal: controller.signal,
     });
     // Stop listening to mousemove when mouse is released somewhere on the document. Not necessarily the button
-    document.addEventListener("mouseup", () => controller.abort(), {
+    document.addEventListener("pointerup", () => controller.abort(), {
       signal: controller.signal,
     });
   }
@@ -146,7 +169,7 @@ export default function Index() {
             }
           />
           <ol
-            ref={pane1}
+            ref={setPane1}
             class="col-start-1 grid grid-cols-[auto_1fr_auto] sm:rounded-medium scrollbar-none overflow-y-scroll"
           >
             <For each={new Array(100)}>
@@ -197,7 +220,7 @@ export default function Index() {
           <div id="drag-handle" ref={dragHandle} class="w-6 content-center">
             {/* TODO check what the transtion duration should be */}
             <button
-              onMouseDown={handleMouseDown}
+              onPointerDown={handlePointerDown}
               class="block bg-light-outline dark:bg-dark-outline w-1 h-12 rounded-full mx-auto hover:bg-[color-mix(in_srgb,theme(colors.light.outline),theme(colors.light.inverse-on-surface)_8%)] dark:hover:bg-[color-mix(in_srgb,theme(colors.dark.outline),theme(colors.dark.inverse-on-surface)_8%)] focus-visible:outline-none focus-visible:bg-[color-mix(in_srgb,theme(colors.light.outline),theme(colors.light.inverse-on-surface)_10%)] dark:focus-visible:bg-[color-mix(in_srgb,theme(colors.dark.outline),theme(colors.dark.inverse-on-surface)_10%)] active:bg-light-on-surface dark:active:bg-dark-on-surface active:rounded-medium active:w-3 active:h-[3.25rem] transition-all duration-short-3 relative cursor-ew-resize"
             >
               {/* Touch target as the tailwind master would do it himself https://youtu.be/MrzrSFbxW7M?t=1869 */}
