@@ -47,6 +47,16 @@ export default function Index() {
 
   /** @type {HTMLDivElement | undefined} */
   let dragHandle;
+  /** @type {number | undefined} */
+  let dragHandleCenterOffset;
+  onMount(() => {
+    if (dragHandle === undefined)
+      throw new Error("Drag handle should be defined");
+
+    dragHandleCenterOffset = dragHandle.clientWidth / 2;
+    console.debug("Drag handle center offset", dragHandleCenterOffset);
+  });
+
   /** @type {Signal<HTMLOListElement | undefined>} */
   let [pane1, setPane1] = createSignal();
   /** @type {HTMLElement | undefined} */
@@ -61,21 +71,15 @@ export default function Index() {
       return 0;
     }
 
-    if (pane2 !== undefined) {
-      let width = pane2?.clientWidth;
-      width -= getPaddingY(pane2);
-      console.debug("Pane 2 width", width);
-
-      // if (pane2?.clientWidth === 0) {
-      // if (width === 0) {
-      //   //TODO
-      //   return handleX();
-      // }
-    }
     const maxWidth = document.documentElement.clientWidth;
-    console.debug("Handle X", handleX());
 
-    return Math.max(0, Math.min(maxWidth - 48 - 12, handleX()));
+    if (dragHandleCenterOffset === undefined)
+      throw new Error("Drag handle center offset should be defined");
+
+    return Math.max(
+      0,
+      Math.min(maxWidth - 48 - dragHandleCenterOffset, handleX())
+    );
   };
 
   createEffect(() => {
@@ -102,10 +106,10 @@ export default function Index() {
     setHandleX((x) => {
       // Pane 1 X is set on mount and user should not be able to move drag handle before mount
       if (pane1X === undefined) throw new Error("Pane 1 X should be defined");
-      return event.clientX - pane1X - 12;
-      const newX = x + event.movementX;
+      if (dragHandleCenterOffset === undefined)
+        throw new Error("Drag handle center offset should be defined");
 
-      return newX;
+      return event.clientX - pane1X - dragHandleCenterOffset;
     });
   }
 
@@ -144,41 +148,42 @@ export default function Index() {
         {/* Expanded: Fixed pane should be 360dp by default */}
         {/* Large & Extra large: Fixed pane should be 412dp by default */}
         <main class="grid sm:col-span-3 sm:row-span-3 sm:grid-rows-subgrid sm:grid-cols-subgrid overflow-hidden sm:pb-6">
-          <TopAppBar
-            header="Melt"
-            trailingAction={
-              <button
-                onClick={() => {
-                  setApp("name", null);
-                  setApp("isOnboarded", false);
-                }}
-                class="p-3 text-light-on-surface-variant dark:text-dark-on-surface-variant"
-              >
-                <span class="sr-only">sign out</span>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  height="24px"
-                  viewBox="0 -960 960 960"
-                  width="24px"
-                  aria-hidden="true"
-                  fill="currentColor"
+          <aside class="grid grid-rows-subgrid row-span-2 isolate">
+            <TopAppBar
+              header="Melt"
+              trailingAction={
+                <button
+                  onClick={() => {
+                    setApp("name", null);
+                    setApp("isOnboarded", false);
+                  }}
+                  class="p-3 text-light-on-surface-variant dark:text-dark-on-surface-variant"
                 >
-                  <path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm440-160-55-58 102-102H360v-80h327L585-622l55-58 200 200-200 200Z" />
-                </svg>
-              </button>
-            }
-          />
-          <ol
-            ref={setPane1}
-            class="col-start-1 grid grid-cols-[auto_1fr_auto] sm:rounded-medium scrollbar-none overflow-y-scroll"
-          >
-            <For each={new Array(100)}>
-              {() => (
-                <li class="contents">
-                  <a
-                    href="#"
-                    draggable="false"
-                    class="ps-4 pe-6 grid grid-cols-subgrid col-span-3 gap-x-4 py-2 items-center bg-light-surface dark:bg-dark-surface sm:bg-light-surface-container sm:dark:bg-dark-surface-container group
+                  <span class="sr-only">sign out</span>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    height="24px"
+                    viewBox="0 -960 960 960"
+                    width="24px"
+                    aria-hidden="true"
+                    fill="currentColor"
+                  >
+                    <path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h280v80H200v560h280v80H200Zm440-160-55-58 102-102H360v-80h327L585-622l55-58 200 200-200 200Z" />
+                  </svg>
+                </button>
+              }
+            />
+            <ol
+              ref={setPane1}
+              class="col-start-1 grid grid-cols-[auto_1fr_auto] sm:rounded-medium scrollbar-none overflow-y-scroll"
+            >
+              <For each={new Array(100)}>
+                {() => (
+                  <li class="contents">
+                    <a
+                      href="#"
+                      draggable="false"
+                      class="ps-4 pe-6 grid grid-cols-subgrid col-span-3 gap-x-4 py-2 items-center bg-light-surface dark:bg-dark-surface sm:bg-light-surface-container sm:dark:bg-dark-surface-container group
                     hover:bg-[color-mix(in_srgb,theme(colors.light.surface),theme(colors.light.on-surface)_8%)]
                     hover:dark:bg-[color-mix(in_srgb,theme(colors.dark.surface),theme(colors.dark.on-surface)_8%)]
                     focus-visible:outline-[3px] focus-visible:z-[1] focus-visible:outline-offset-0 focus-visible:outline-light-secondary dark:focus-visible:outline-dark-secondary
@@ -186,38 +191,44 @@ export default function Index() {
                     focus-visible:dark:bg-[color-mix(in_srgb,theme(colors.dark.surface),theme(colors.dark.on-surface)_10%)]
                     active:bg-[color-mix(in_srgb,theme(colors.light.surface),theme(colors.light.on-surface)_10%)]
                     active:dark:bg-[color-mix(in_srgb,theme(colors.dark.surface),theme(colors.dark.on-surface)_10%)]"
-                  >
-                    <span class="size-10 bg-light-surface-container-high dark:bg-dark-surface-container-high rounded-full text-center content-center text-title-md text-light-on-surface dark:text-dark-on-surface">
-                      C
-                    </span>
-                    <hgroup class="min-h-14 content-center">
-                      <h2 class="text-light-on-surface dark:text-dark-on-surface text-body-lg">
-                        Headline
-                      </h2>
-                      <p
-                        class="text-light-on-surface-variant dark:text-dark-on-surface-variant line-clamp-1 text-ellipsis text-body-md group-hover:text-light-on-surface dark:group-hover:text-dark-on-surface
+                    >
+                      <span class="size-10 bg-light-surface-container-high dark:bg-dark-surface-container-high rounded-full text-center content-center text-title-md text-light-on-surface dark:text-dark-on-surface">
+                        C
+                      </span>
+                      <hgroup class="min-h-14 content-center">
+                        <h2 class="text-light-on-surface dark:text-dark-on-surface text-body-lg">
+                          Headline
+                        </h2>
+                        <p
+                          class="text-light-on-surface-variant dark:text-dark-on-surface-variant line-clamp-1 text-ellipsis text-body-md group-hover:text-light-on-surface dark:group-hover:text-dark-on-surface
                         group-focus-visible:text-light-on-surface dark:group-focus-visible:text-dark-on-surface
                         group-active:text-light-on-surface dark:group-active:text-dark-on-surface
            "
-                      >
-                        Supporting text that is long enough to fill up multiple
-                        lines
-                        {/* Supporting text */}
+                        >
+                          Supporting text that is long enough to fill up
+                          multiple lines
+                          {/* Supporting text */}
+                        </p>
+                      </hgroup>
+                      <p class="text-light-on-surface-variant dark:text-dark-on-surface-variant text-label-sm">
+                        Now
                       </p>
-                    </hgroup>
-                    <p class="text-light-on-surface-variant dark:text-dark-on-surface-variant text-label-sm">
-                      Now
-                    </p>
-                  </a>
-                </li>
-              )}
-            </For>
-          </ol>
+                    </a>
+                  </li>
+                )}
+              </For>
+            </ol>
+          </aside>
+
           {/* Drag handle specification: https://m3.material.io/foundations/layout/understanding-layout/parts-of-layout */}
           {/* "The drag handle container is wider than than the handle, and stretches to fill vertical space." */}
           {/* Draggable area has to be at least 24dp wide touch target */}
           {/* Is a drag handle a button?*/}
-          <div id="drag-handle" ref={dragHandle} class="w-6 content-center">
+          <div
+            id="drag-handle"
+            ref={dragHandle}
+            class="w-6 content-center isolate row-span-2 bg-light-surface-container dark:bg-dark-surface-container"
+          >
             {/* TODO check what the transtion duration should be */}
             <button
               onPointerDown={handlePointerDown}
@@ -231,7 +242,7 @@ export default function Index() {
           </div>
           <article
             ref={pane2}
-            class="hidden row-span-2 sm:col-start-3 sm:row-start-1 sm:block bg-light-surface dark:bg-dark-surface rounded-extra-large p-6"
+            class="hidden isolate row-span-2 sm:col-start-3 sm:row-start-1 sm:block bg-light-surface dark:bg-dark-surface rounded-extra-large p-6"
           >
             Chat window
           </article>
