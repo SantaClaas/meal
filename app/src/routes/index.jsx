@@ -1,6 +1,5 @@
 import {
   createEffect,
-  createMemo,
   createSignal,
   For,
   onMount,
@@ -31,15 +30,6 @@ function getPane1Width() {
   const value = parseInt(storedWidth);
   localStorage.setItem("--pane-1-width", value.toString());
   return value;
-}
-
-/**
- *
- * @param {Element} element
- */
-function getPaddingY(element) {
-  const styles = getComputedStyle(element);
-  return parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight);
 }
 
 export default function Index() {
@@ -103,7 +93,7 @@ export default function Index() {
 
   /** @param {PointerEvent} event */
   function handlePointerMove(event) {
-    setHandleX((x) => {
+    setHandleX((_x) => {
       // Pane 1 X is set on mount and user should not be able to move drag handle before mount
       if (pane1X === undefined) throw new Error("Pane 1 X should be defined");
       if (dragHandleCenterOffset === undefined)
