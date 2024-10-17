@@ -1,10 +1,4 @@
-import {
-  createEffect,
-  createSignal,
-  For,
-  onMount,
-  Show,
-} from "solid-js";
+import { createEffect, createSignal, For, onMount, Show } from "solid-js";
 import Onboarding from "../components/Onboarding";
 import { useAppContext } from "../components/AppContext";
 import TopAppBar from "../components/TopAppBar";
@@ -93,6 +87,7 @@ export default function Index() {
 
   /** @param {PointerEvent} event */
   function handlePointerMove(event) {
+    console.debug("Pointer move");
     setHandleX((_x) => {
       // Pane 1 X is set on mount and user should not be able to move drag handle before mount
       if (pane1X === undefined) throw new Error("Pane 1 X should be defined");
@@ -105,6 +100,7 @@ export default function Index() {
 
   // Drag based on https://jsfiddle.net/thatOneGuy/u5bvwh8m/16/
   function handlePointerDown() {
+    console.debug("Pointer down");
     const controller = new AbortController();
 
     document.addEventListener("pointermove", handlePointerMove, {
@@ -129,7 +125,7 @@ export default function Index() {
       }
     >
       <>
-        <nav class="row-start-3 sm:row-start-1 sm:col-start-1">NAV</nav>
+        <nav class="row-start-3 sm:row-start-1 sm:col-start-1"></nav>
         {/* <main class="bg-light-surface dark:bg-dark-surface h-full mx-4 sm:mx-6 mb-4 sm:mb-6 rounded-"> */}
         {/* <h1>Welcome {app.name}</h1> */}
         {/* <a href="/invite">Invite</a> */}
@@ -217,7 +213,7 @@ export default function Index() {
           <div
             id="drag-handle"
             ref={dragHandle}
-            class="w-6 content-center isolate row-span-2 bg-light-surface-container dark:bg-dark-surface-container"
+            class="w-6 invisible md:visible select-none content-center isolate row-span-2 bg-light-surface-container dark:bg-dark-surface-container"
           >
             {/* TODO check what the transtion duration should be */}
             <button
@@ -232,7 +228,7 @@ export default function Index() {
           </div>
           <article
             ref={pane2}
-            class="hidden isolate row-span-2 sm:col-start-3 sm:row-start-1 sm:block bg-light-surface dark:bg-dark-surface rounded-extra-large p-6"
+            class="hidden sm:mt-4 isolate row-span-2 sm:col-start-3 sm:row-start-1 sm:block bg-light-surface dark:bg-dark-surface rounded-extra-large p-6"
           >
             Chat window
           </article>
