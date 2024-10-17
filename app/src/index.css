@@ -7,7 +7,7 @@
   /* surface container color is the background of the page to have it as background for the navigation elements */
   :root {
     color-scheme: light dark;
-    @apply bg-light-surface-container dark:bg-dark-surface-container text-light-on-surface dark:text-dark-on-surface caret-light-primary dark:caret-dark-primary accent-light-primary dark:accent-dark-primary selection:bg-light-primary dark:selection:bg-dark-primary selection:text-light-on-primary dark:selection:text-dark-on-primary;
+    @apply bg-light-surface-container dark:bg-dark-surface-container text-light-on-surface dark:text-dark-on-surface caret-light-primary dark:caret-dark-primary accent-light-primary dark:accent-dark-primary selection:bg-light-primary dark:selection:bg-dark-primary selection:text-light-on-primary dark:selection:text-dark-on-primary overscroll-none;
   }
 
   @property --pane-1-width {
