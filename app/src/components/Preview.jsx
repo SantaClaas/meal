@@ -50,8 +50,10 @@ export default function Preview() {
     newImage.addEventListener(
       "load",
       () => {
-        console.debug("Loaded preview");
-        context.drawImage(newImage, 0, 0);
+        // Needs to be set before drawing image
+        canvas.width = newImage.width;
+        canvas.height = newImage.height;
+        context.drawImage(newImage, 0, 0, newImage.width, newImage.height);
         URL.revokeObjectURL(url);
       },
       { once: true }

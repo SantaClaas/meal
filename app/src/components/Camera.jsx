@@ -130,7 +130,7 @@ export default function Camera() {
     }
     context.drawImage(video, 0, 0);
 
-    /** @type {Parameters<Parameters<HTMLCanvasElement["toBlob"]>[0]>[0]} Callback parameter */
+    /** @type {Parameters<Parameters<HTMLCanvasElement["toBlob"]>[0]>[0]} (toBlob Callback parameter) */
     //TODO set quality and image type
     const blob = await new Promise((resolve) => canvas.toBlob(resolve));
 
