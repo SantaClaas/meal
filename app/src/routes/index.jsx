@@ -5,7 +5,7 @@ import TopAppBar from "../components/TopAppBar";
 import Camera from "../components/Camera";
 //@ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
 // https://devblogs.microsoft.com/typescript/announcing-typescript-5-5/#the-jsdoc-@import-tag
-/** @import { Signal, JSX, Accessor } from "solid-js" */
+/** @import { Signal, JSX, Accessor, ParentProps } from "solid-js" */
 function getPane1Width() {
   let storedWidth = localStorage.getItem("--pane-1-width");
   if (storedWidth !== null) {
@@ -27,7 +27,8 @@ function getPane1Width() {
   return value;
 }
 
-export default function Index() {
+/** @param {ParentProps} properties */
+export default function Index(properties) {
   const [app, setApp] = useAppContext();
 
   /** @type {HTMLDivElement | undefined} */
@@ -231,9 +232,7 @@ export default function Index() {
             ref={pane2}
             class="hidden content-center sm:mt-4 isolate row-span-2 sm:col-start-3 sm:row-start-1 sm:block bg-light-surface dark:bg-dark-surface rounded-extra-large p-6"
           >
-            <Show when={window.isSecureContext}>
-              <Camera />
-            </Show>
+            {properties.children}
           </article>
         </main>
       </>

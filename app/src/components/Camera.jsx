@@ -1,3 +1,4 @@
+import { useNavigate } from "@solidjs/router";
 import {
   createEffect,
   createResource,
@@ -113,6 +114,7 @@ export default function Camera() {
 
   /** @type {Signal<Blob | undefined>} */
   const [photo, setPhoto] = createSignal();
+  const navigate = useNavigate();
   async function takePhoto() {
     if (canvas === undefined || video === undefined) return;
 
@@ -127,19 +129,39 @@ export default function Camera() {
       return;
     }
     context.drawImage(video, 0, 0);
-    canvas.toBlob((blob) => {
-      if (blob === null) {
-        console.warn("Could not create photo blob");
-        return;
-      }
 
-      setPhoto(blob);
-    }, "image/png");
+    /** @type {Parameters<Parameters<HTMLCanvasElement["toBlob"]>[0]>[0]} Callback parameter */
+    //TODO set quality and image type
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve));
+
+    if (blob === null) {
+      console.error("Could not create photo blob");
+      return;
+    }
 
     // Stop recording
     mediaStream()
       ?.getTracks()
       .forEach((track) => track.stop());
+
+    // Store photo to origin private file system to persist it in case of unexpected app closing
+    // Fall back to only keeping it in memory when we can't persist it
+    //TODO checkout persist
+    // navigator.storage.persist()
+    const directory = await navigator.storage.getDirectory();
+
+    const fileHandle = await directory.getFileHandle("preview", {
+      create: true,
+    });
+    const writer = await fileHandle.createWritable({ keepExistingData: false });
+    await writer.write(blob);
+    // Don't forget to close the writer to persist the file
+    await writer.close();
+
+    console.debug("Wrote preview to file");
+
+    // Navigate to preview
+    navigate("/preview");
   }
 
   return (
