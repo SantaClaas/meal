@@ -20,8 +20,7 @@ export default function Camera() {
     if (!isPermissionGranted()) return;
     return await navigator.mediaDevices.getUserMedia({
       video: {
-        // aspectRatio:
-        // { ideal: 9 / 16 }
+        aspectRatio: { ideal: 9 / 16 },
       },
       audio: false,
     });
@@ -64,26 +63,27 @@ export default function Camera() {
     video.srcObject = stream;
   });
 
-  /** @type {HTMLDivElement | undefined} */
-  let div;
-
-  onMount(() => {
-    if (video === undefined || div === undefined) return;
-  });
-
   return (
     <>
       {/* Couldn't get this to work without a container with fixed width */}
-      <div
-        ref={div}
-        class="aspect-[9/16] w-1/2 rounded-large relative overflow-hidden"
-      >
+      <div class="aspect-[9/16] w-3/4 rounded-large grid grid-cols-1 place-items-center grid-rows-[1fr_auto] overflow-hidden mx-auto">
         <video
           ref={video}
           autoplay
-          class="object-cover h-full absolute inset-0 w-full"
+          class="object-cover h-full w-full col-start-1 row-start-1 row-span-2 pointer-events-none"
         ></video>
-        {/* <button onPointerDown={handleTakePhoto}>Take Photo</button> */}
+        <button class="bg-light-primary dark:bg-dark-primary block col-start-1 row-start-2 size-24 rounded-full self-center mb-5 ring-4 ring-light-inverse-primary dark:ring-dark-inverse-primary">
+          <span class="sr-only">Take Photo</span>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            height="48px"
+            viewBox="0 -960 960 960"
+            width="48px"
+            class="mx-auto fill-dark-on-primary dark:fill-light-on-primary "
+          >
+            <path d="M480-260q75 0 127.5-52.5T660-440q0-75-52.5-127.5T480-620q-75 0-127.5 52.5T300-440q0 75 52.5 127.5T480-260Zm0-80q-42 0-71-29t-29-71q0-42 29-71t71-29q42 0 71 29t29 71q0 42-29 71t-71 29ZM160-120q-33 0-56.5-23.5T80-200v-480q0-33 23.5-56.5T160-760h126l74-80h240l74 80h126q33 0 56.5 23.5T880-680v480q0 33-23.5 56.5T800-120H160Zm0-80h640v-480H638l-73-80H395l-73 80H160v480Zm320-240Z" />
+          </svg>
+        </button>
       </div>
     </>
   );
