@@ -52,9 +52,7 @@ export default function Preview() {
       () => {
         console.debug("Loaded preview");
         context.drawImage(newImage, 0, 0);
-        canvas.width = newImage.width;
-        canvas.height = newImage.height;
-        // URL.revokeObjectURL(url);
+        URL.revokeObjectURL(url);
       },
       { once: true }
     );
@@ -69,10 +67,9 @@ export default function Preview() {
   });
 
   return (
-    <div>
-      Preview {image()?.name}
-      <canvas ref={canvas}></canvas>
-      <img src={url()} />
+    <div class="aspect-[9/16] max-w-2xl max-h-full min-w-80 rounded-large grid grid-cols-1 place-items-center grid-rows-[1fr_auto] overflow-hidden mx-auto">
+      <canvas ref={canvas} class="w-full"></canvas>
+      {/* <img src={url()} /> */}
     </div>
   );
 }
