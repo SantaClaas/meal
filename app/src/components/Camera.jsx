@@ -1,11 +1,13 @@
 import { useNavigate } from "@solidjs/router";
 import {
   createEffect,
+  createMemo,
   createResource,
   createSignal,
   onCleanup,
   onMount,
   Show,
+  Suspense,
   Switch,
 } from "solid-js";
 
@@ -21,14 +23,42 @@ export default function Camera() {
     "is camera permission granted?" in localStorage
   );
 
-  //   /** @type {Signal<MediaStream | undefined>} */
-  //   const [mediaStream, setMediaStream] = createSignal();
-  //TODO progressively enhance to use ImageCapture API
-  const [mediaStream, { mutate, refetch }] = createResource(async () => {
-    // Wait for permission
+  const [devices] = createResource(async () => {
     if (!isPermissionGranted()) return;
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    // We only care about video devices
+    return devices.filter((device) => device.kind === "videoinput");
+  });
+
+  // Use first device and swap through them with user interaction
+  const [activeDeviceIndex, setActiveDeviceIndex] = createSignal(0);
+
+  function swapDevice() {
+    const length = devices()?.length;
+    if (length === undefined || length < 2) return;
+
+    setActiveDeviceIndex((index) => {
+      // Loop through indices
+      if (index === length - 1) return 0;
+
+      return index + 1;
+    });
+  }
+
+  //TODO progressively enhance to use ImageCapture API
+
+  const activeDevice = () => {
+    const videoDevices = devices();
+    if (videoDevices === undefined) return;
+    return videoDevices.at(activeDeviceIndex());
+  };
+
+  // devices -> activeDevice -> mediaStream
+  const [mediaStream] = createResource(activeDevice, async (device) => {
+    if (device === undefined) return;
     return await navigator.mediaDevices.getUserMedia({
       video: {
+        deviceId: device.deviceId,
         aspectRatio: { ideal: 9 / 16 },
       },
       audio: false,
@@ -43,46 +73,29 @@ export default function Camera() {
     if (!isPermissionGranted()) return;
     window.addEventListener(
       "visibilitychange",
-      () => {
-        if (document.hidden) {
-          mediaStream()
-            ?.getTracks()
-            .forEach((track) => track.stop());
-          return;
-        }
-
+      async () => {
         // Restart recording when user comes back to continue showing the feed
-        refetch();
+        console.debug("Visibility change", !document.hidden);
+        mediaStream()
+          ?.getTracks()
+          // This should disable the camera and turn off the camera light indicator
+          //TODO test if bugged and light does not turn off. Use isEnabled signal then and stop/start media stream as an effect/resource
+          .forEach((track) => (track.enabled = !document.hidden));
       },
       { signal: focusController.signal }
     );
   });
 
   // Component being removed can also be seen as losing focus
-  onCleanup(() => {
+  onCleanup(async () => {
     focusController.abort();
+    // Fully stop the streams
+    mediaStream()
+      ?.getTracks()
+      .forEach((track) => track.stop());
   });
 
-  //   createEffect((interval) => {
-  //     const stream = mediaStream();
-  //     if (stream === undefined) return interval;
-  //     if (interval !== undefined) clearInterval(interval);
-
-  //     const newInterval = setInterval(
-  //       () => console.debug("Has fucus", document.hasFocus()),
-  //       1_000
-  //     );
-  //     return newInterval;
-  //   });
-
   async function handleGrantAccess() {
-    const mediaStream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: false,
-    });
-
-    mutate(mediaStream);
-
     localStorage.setItem("is camera permission granted?", "");
     setIsPermissionGranted(true);
   }
@@ -99,41 +112,48 @@ export default function Camera() {
     );
   }
 
-  /** @type {HTMLVideoElement | undefined} */
-  let video;
+  /** @type {Signal<HTMLVideoElement | undefined>} */
+  const [video, setVideo] = createSignal();
 
-  createEffect(() => {
-    if (video === undefined) return;
+  createEffect(async () => {
+    const videoElement = video();
+    if (videoElement === undefined) return;
     const stream = mediaStream();
     if (stream === undefined) return;
-    video.srcObject = stream;
+    videoElement.srcObject = stream;
   });
 
-  /** @type {HTMLCanvasElement | undefined} */
-  let canvas;
-
-  /** @type {Signal<Blob | undefined>} */
-  const [photo, setPhoto] = createSignal();
   const navigate = useNavigate();
   async function takePhoto() {
-    if (canvas === undefined || video === undefined) return;
-
-    const context = canvas.getContext("2d");
+    const videoElement = video();
+    if (videoElement === undefined) return;
     // We take the full height and cut the sides as it is vertical conent
-    canvas.height = video.videoHeight;
     // Convert to 9/16 aspect ratio based on height
-    canvas.width = Math.round((video.videoHeight * 9) / 16);
+    console.debug(
+      "Video height",
+      videoElement.videoHeight,
+      "width",
+      videoElement.videoWidth
+    );
+    const canvas = new OffscreenCanvas(
+      //TODO check why this does not work but manually setting 1080 and 1920 does
+      //   videoElement.videoWidth,
+      //   Math.round((videoElement.videoHeight * 9) / 16)
+      1080,
+      1920
+    );
+    const context = canvas.getContext("2d");
 
     if (context === null) {
       console.error("Expected to get context");
       return;
     }
-    context.drawImage(video, 0, 0);
+
+    context.drawImage(videoElement, 0, 0, 1080, 1920);
 
     /** @type {Parameters<Parameters<HTMLCanvasElement["toBlob"]>[0]>[0]} (toBlob Callback parameter) */
     //TODO set quality and image type
-    const blob = await new Promise((resolve) => canvas.toBlob(resolve));
-
+    const blob = await canvas.convertToBlob();
     if (blob === null) {
       console.error("Could not create photo blob");
       return;
@@ -164,41 +184,57 @@ export default function Camera() {
     navigate("/preview");
   }
 
+  const isSwapButtonVisible = () => {
+    const count = devices()?.length;
+    // Only show button if there is a camera to swap to
+    return count !== undefined && count > 1;
+  };
+
   return (
     <>
       {/* Couldn't get this to work without a container with fixed width */}
-      <div class="aspect-[9/16] max-w-2xl max-h-full min-w-80 rounded-large grid grid-cols-1 place-items-center grid-rows-[1fr_auto] overflow-hidden mx-auto">
-        <Show when={photo() === undefined}>
-          <video
-            ref={video}
-            autoplay
-            class="object-cover h-full w-full col-start-1 row-start-1 row-span-2 pointer-events-none"
-          ></video>
+      <div class="aspect-[9/16] max-w-2xl max-h-full min-w-80 rounded-large grid grid-cols-3 place-items-center grid-rows-[1fr_auto] overflow-hidden mx-auto">
+        <video
+          ref={setVideo}
+          autoplay
+          class="object-cover h-full w-full col-start-1 row-start-1 row-span-2 col-span-3 pointer-events-none"
+        ></video>
 
-          <button
-            onClick={takePhoto}
-            class="bg-light-primary dark:bg-dark-primary block col-start-1 row-start-2 size-24 rounded-full self-center mb-5 ring-4 ring-light-inverse-primary dark:ring-dark-inverse-primary"
+        <button
+          onClick={takePhoto}
+          class="bg-light-primary col-start-2 dark:bg-dark-primary block row-start-2 size-24 rounded-full self-center mb-5 ring-4 ring-light-inverse-primary dark:ring-dark-inverse-primary"
+        >
+          <span class="sr-only">Take Photo</span>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            height="48px"
+            viewBox="0 -960 960 960"
+            width="48px"
+            class="mx-auto fill-dark-on-primary dark:fill-light-on-primary "
           >
-            <span class="sr-only">Take Photo</span>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              height="48px"
-              viewBox="0 -960 960 960"
-              width="48px"
-              class="mx-auto fill-dark-on-primary dark:fill-light-on-primary "
-            >
-              <path d="M480-260q75 0 127.5-52.5T660-440q0-75-52.5-127.5T480-620q-75 0-127.5 52.5T300-440q0 75 52.5 127.5T480-260Zm0-80q-42 0-71-29t-29-71q0-42 29-71t71-29q42 0 71 29t29 71q0 42-29 71t-71 29ZM160-120q-33 0-56.5-23.5T80-200v-480q0-33 23.5-56.5T160-760h126l74-80h240l74 80h126q33 0 56.5 23.5T880-680v480q0 33-23.5 56.5T800-120H160Zm0-80h640v-480H638l-73-80H395l-73 80H160v480Zm320-240Z" />
-            </svg>
-          </button>
-        </Show>
+            <path d="M480-260q75 0 127.5-52.5T660-440q0-75-52.5-127.5T480-620q-75 0-127.5 52.5T300-440q0 75 52.5 127.5T480-260Zm0-80q-42 0-71-29t-29-71q0-42 29-71t71-29q42 0 71 29t29 71q0 42-29 71t-71 29ZM160-120q-33 0-56.5-23.5T80-200v-480q0-33 23.5-56.5T160-760h126l74-80h240l74 80h126q33 0 56.5 23.5T880-680v480q0 33-23.5 56.5T800-120H160Zm0-80h640v-480H638l-73-80H395l-73 80H160v480Zm320-240Z" />
+          </svg>
+        </button>
 
-        <canvas
-          ref={canvas}
-          width={1080}
-          height={1920}
-          classList={{ hidden: photo() === undefined }}
-          class="h-full"
-        ></canvas>
+        <Suspense>
+          <Show when={isSwapButtonVisible()}>
+            <button
+              onClick={swapDevice}
+              class="col-start-3 row-start-2 size-12 place-content-center"
+            >
+              <span class="sr-only">Swap camera</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                height="24px"
+                viewBox="0 -960 960 960"
+                width="24px"
+                class="fill-light-inverse-on-surface mx-auto"
+              >
+                <path d="M480-80q-143 0-253-90T88-400h82q28 106 114 173t196 67q86 0 160-42.5T756-320H640v-80h240v240h-80v-80q-57 76-141 118T480-80Zm0-280q-50 0-85-35t-35-85q0-50 35-85t85-35q50 0 85 35t35 85q0 50-35 85t-85 35ZM80-560v-240h80v80q57-76 141-118t179-42q143 0 253 90t139 230h-82q-28-106-114-173t-196-67q-86 0-160 42.5T204-640h116v80H80Z" />
+              </svg>
+            </button>
+          </Show>
+        </Suspense>
       </div>
     </>
   );
