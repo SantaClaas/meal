@@ -2,7 +2,6 @@ import { createEffect, createSignal, For, onMount, Show } from "solid-js";
 import Onboarding from "../components/Onboarding";
 import { useAppContext } from "../components/AppContext";
 import TopAppBar from "../components/TopAppBar";
-import Camera from "../components/Camera";
 //@ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
 // https://devblogs.microsoft.com/typescript/announcing-typescript-5-5/#the-jsdoc-@import-tag
 /** @import { Signal, JSX, Accessor, ParentProps } from "solid-js" */

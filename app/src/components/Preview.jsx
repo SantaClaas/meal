@@ -1,5 +1,5 @@
 import { useNavigate } from "@solidjs/router";
-import { createEffect, createResource, createSignal } from "solid-js";
+import { createEffect, createResource } from "solid-js";
 
 async function loadPreviewImage() {
   const directory = await navigator.storage.getDirectory();
@@ -33,8 +33,6 @@ export default function Preview() {
   /** @type {HTMLCanvasElement | undefined} */
   let canvas;
 
-  const [url, setUrl] = createSignal();
-
   createEffect(() => {
     if (canvas === undefined) return;
     const preview = image();
@@ -60,12 +58,6 @@ export default function Preview() {
     );
 
     newImage.src = url;
-
-    setUrl(url);
-
-    console.debug("Url; " + url);
-
-    // context?.drawImage(preview., 0, 0);
   });
 
   return (

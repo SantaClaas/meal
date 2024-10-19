@@ -1,16 +1,14 @@
 import { useNavigate } from "@solidjs/router";
 import {
   createEffect,
-  createMemo,
   createResource,
   createSignal,
   onCleanup,
-  onMount,
   Show,
   Suspense,
-  Switch,
 } from "solid-js";
-
+//@ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
+// https://devblogs.microsoft.com/typescript/announcing-typescript-5-5/#the-jsdoc-@import-tag
 /** @import { Match, Signal } from "solid-js" */
 
 export default function Camera() {
