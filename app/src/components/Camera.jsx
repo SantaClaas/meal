@@ -2,6 +2,7 @@ import {
   createEffect,
   createResource,
   createSignal,
+  onCleanup,
   onMount,
   Show,
   Switch,
@@ -22,7 +23,7 @@ export default function Camera() {
   //   /** @type {Signal<MediaStream | undefined>} */
   //   const [mediaStream, setMediaStream] = createSignal();
   //TODO progressively enhance to use ImageCapture API
-  const [mediaStream, { mutate }] = createResource(async () => {
+  const [mediaStream, { mutate, refetch }] = createResource(async () => {
     // Wait for permission
     if (!isPermissionGranted()) return;
     return await navigator.mediaDevices.getUserMedia({
@@ -32,6 +33,46 @@ export default function Camera() {
       audio: false,
     });
   });
+
+  // Stop preview and activated camera when user is not in app
+  const focusController = new AbortController();
+  //   document.addEventListener("focusout", () => console.debug("Lost focus"));
+  // If we encounter issues with this then read this: https://stackoverflow.com/questions/28993157/visibilitychange-event-is-not-triggered-when-switching-program-window-with-altt
+  createEffect(() => {
+    if (!isPermissionGranted()) return;
+    window.addEventListener(
+      "visibilitychange",
+      () => {
+        if (document.hidden) {
+          mediaStream()
+            ?.getTracks()
+            .forEach((track) => track.stop());
+          return;
+        }
+
+        // Restart recording when user comes back to continue showing the feed
+        refetch();
+      },
+      { signal: focusController.signal }
+    );
+  });
+
+  // Component being removed can also be seen as losing focus
+  onCleanup(() => {
+    focusController.abort();
+  });
+
+  //   createEffect((interval) => {
+  //     const stream = mediaStream();
+  //     if (stream === undefined) return interval;
+  //     if (interval !== undefined) clearInterval(interval);
+
+  //     const newInterval = setInterval(
+  //       () => console.debug("Has fucus", document.hasFocus()),
+  //       1_000
+  //     );
+  //     return newInterval;
+  //   });
 
   async function handleGrantAccess() {
     const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -64,7 +105,6 @@ export default function Camera() {
     if (video === undefined) return;
     const stream = mediaStream();
     if (stream === undefined) return;
-    console.debug("Setting stream");
     video.srcObject = stream;
   });
 
@@ -77,7 +117,6 @@ export default function Camera() {
     if (canvas === undefined || video === undefined) return;
 
     const context = canvas.getContext("2d");
-    console.debug("Video", video.width, video.height);
     // We take the full height and cut the sides as it is vertical conent
     canvas.height = video.videoHeight;
     // Convert to 9/16 aspect ratio based on height
@@ -96,6 +135,11 @@ export default function Camera() {
 
       setPhoto(blob);
     }, "image/png");
+
+    // Stop recording
+    mediaStream()
+      ?.getTracks()
+      .forEach((track) => track.stop());
   }
 
   return (

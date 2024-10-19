@@ -229,7 +229,7 @@ export default function Index() {
           </div>
           <article
             ref={pane2}
-            class="hidden sm:mt-4 isolate row-span-2 sm:col-start-3 sm:row-start-1 sm:block bg-light-surface dark:bg-dark-surface rounded-extra-large p-6"
+            class="hidden content-center sm:mt-4 isolate row-span-2 sm:col-start-3 sm:row-start-1 sm:block bg-light-surface dark:bg-dark-surface rounded-extra-large p-6"
           >
             <Show when={window.isSecureContext}>
               <Camera />
