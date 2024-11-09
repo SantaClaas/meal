@@ -198,9 +198,10 @@ export default function Camera() {
           class="object-cover h-full w-full col-start-1 row-start-1 row-span-2 col-span-3 pointer-events-none"
         ></video>
 
+        {/* Need to add z-index because Safari is buggy with stacking order. See this codepen for reproduction: https://codepen.io/santaclaas/pen/dyxQrKY */}
         <button
           onClick={takePhoto}
-          class="bg-light-primary col-start-2 dark:bg-dark-primary block row-start-2 size-24 rounded-full self-center mb-5 ring-4 ring-light-inverse-primary dark:ring-dark-inverse-primary"
+          class="bg-light-primary col-start-2 z-10 dark:bg-dark-primary block row-start-2 size-24 rounded-full self-center mb-5 ring-4 ring-light-inverse-primary dark:ring-dark-inverse-primary"
         >
           <span class="sr-only">Take Photo</span>
           <svg
