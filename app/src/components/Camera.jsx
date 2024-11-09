@@ -191,7 +191,7 @@ export default function Camera() {
   return (
     <>
       {/* Couldn't get this to work without a container with fixed width */}
-      <div class="aspect-[9/16] max-w-2xl max-h-full min-w-80 rounded-large grid grid-cols-3 place-items-center grid-rows-[1fr_auto] overflow-hidden mx-auto">
+      <div class="aspect-[9/16] max-h-full min-w-80 rounded-large grid grid-cols-3 place-items-center grid-rows-[1fr_auto] overflow-hidden mx-auto">
         <video
           ref={setVideo}
           autoplay
