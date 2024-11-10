@@ -259,9 +259,10 @@ export default function Camera() {
 
         <Suspense>
           <Show when={isSwapButtonVisible()}>
+            {/* Need to add z-index because Safari is buggy with stacking order. See this codepen for reproduction: https://codepen.io/santaclaas/pen/dyxQrKY */}
             <button
               onClick={swapDevice}
-              class="col-start-3 row-start-2 size-12 place-content-center"
+              class="col-start-3 z-10 row-start-2 size-12 place-content-center"
             >
               <span class="sr-only">Swap camera</span>
               <svg
