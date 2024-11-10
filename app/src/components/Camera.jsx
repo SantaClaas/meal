@@ -10,6 +10,14 @@ import {
 //@ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
 // https://devblogs.microsoft.com/typescript/announcing-typescript-5-5/#the-jsdoc-@import-tag
 /** @import { Match, Signal } from "solid-js" */
+// import Worker from "../workers/saveFile.js?worker&url";
+
+const fileWorker = new Worker(
+  new URL("../workers/saveFile.js", import.meta.url),
+  {
+    type: "module",
+  }
+);
 
 export default function Camera() {
   // 1. Ask for permission in app
@@ -171,12 +179,46 @@ export default function Camera() {
     const fileHandle = await directory.getFileHandle("preview", {
       create: true,
     });
-    const writer = await fileHandle.createWritable({ keepExistingData: false });
-    await writer.write(blob);
-    // Don't forget to close the writer to persist the file
-    await writer.close();
 
-    console.debug("Wrote preview to file");
+    //TODO Only persist image through restarts if origin private file system is supported and writable without a worker
+    if ("createWritable" in fileHandle) {
+      // The chromium and firefox case
+      const writer = await fileHandle.createWritable({
+        keepExistingData: false,
+      });
+      await writer.write(blob);
+      // Don't forget to close the writer to persist the file
+      await writer.close();
+    } else {
+      // The safari case
+      let buffer;
+      if (crossOriginIsolated) {
+        // Might be faster to create an object url but that requires cleanup
+        // Need to test which is faster
+        buffer = new SharedArrayBuffer(blob.size);
+        //TODO is this copying the buffer? Does this even have any benefit?
+        const view = new Uint8Array(buffer);
+        const blobBuffer = await blob.arrayBuffer();
+        view.set(new Uint8Array(blobBuffer));
+      } else {
+        buffer = await blob.arrayBuffer();
+      }
+
+      // Create promise before posting message to worker to avoid (unlikely) race condition
+      // Wait for worker to signal it is finished
+      // If we don't do this the worker is disposed from navigating before it is finished
+      const save = /** @type {Promise<void>} */ (
+        new Promise((resolve) =>
+          fileWorker.addEventListener("message", () => resolve(), {
+            once: true,
+          })
+        )
+      );
+
+      fileWorker.postMessage(buffer);
+
+      await save;
+    }
 
     // Navigate to preview
     navigate("/preview");

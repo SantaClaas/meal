@@ -14,6 +14,13 @@ export default defineConfig({
         ws: true,
       },
     },
+
+    headers: {
+      // Support SharedArrayBuffer to send files to workers which is required for Safari to write files to the private origin file system
+      // Also might be nice to increase security
+      "Cross-Origin-Opener-Policy": "same-origin",
+      "Cross-Origin-Embedder-Policy": "require-corp",
+    },
   },
   build: {
     // Fixes top level await build error and support should be fine, right?...right?

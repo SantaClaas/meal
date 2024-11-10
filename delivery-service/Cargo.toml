@@ -9,6 +9,6 @@ serde = { workspace = true, features = ["derive", "rc"] }
 thiserror = { workspace = true }
 tls_codec = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
-tower-http = { workspace = true, features = ["fs"] }
+tower-http = { workspace = true, features = ["fs", "set-header"] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }

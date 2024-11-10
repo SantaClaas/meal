@@ -6,7 +6,7 @@ use axum::{
         ws::{self, WebSocket},
         Path, State, WebSocketUpgrade,
     },
-    http::StatusCode,
+    http::{header, HeaderName, HeaderValue, StatusCode},
     response::IntoResponse,
     routing::{get, post},
     Router,
@@ -17,6 +17,7 @@ use tokio::{
 };
 use tower_http::{
     services::{ServeDir, ServeFile},
+    set_header::SetResponseHeaderLayer,
     set_status::SetStatus,
 };
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -83,6 +84,17 @@ async fn main() {
         .route("/messages/:to", post(create_message))
         .route("/messages/:to", get(subscribe_messages))
         .fallback_service(serve_client())
+        // Support SharedArrayBuffer to send files to workers which is required for Safari to write files to the private origin file system
+        // Also might be nice to increase security
+        //TODO how to logically combine these two layers?
+        .layer(SetResponseHeaderLayer::if_not_present(
+            HeaderName::from_static("Cross-Origin-Opener-Policy"),
+            HeaderValue::from_static("same-origin"),
+        ))
+        .layer(SetResponseHeaderLayer::if_not_present(
+            HeaderName::from_static("Cross-Origin-Embedder-Policy"),
+            HeaderValue::from_static("require-corp"),
+        ))
         .with_state(Default::default());
 
     // It might become annoying to get the mac pop up for running on 0.0.0.0 so change to localhost instead
