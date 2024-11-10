@@ -11,6 +11,7 @@ import Join from "./routes/join";
 import Chat from "./routes/chat";
 import Camera from "./components/Camera";
 import Preview from "./components/Preview";
+import Debug from "./routes/debug";
 
 render(
   () => (
@@ -29,6 +30,7 @@ render(
         <Route path="/invite" component={Invite} />
         <Route path="/join/:package" component={Join} />
         <Route path="/chat/:groupId" component={Chat} />
+        <Route path="/debug" component={Debug} />
       </Router>
     </AppContextProvider>
   ),

@@ -224,6 +224,20 @@ export default function Camera() {
     navigate("/preview");
   }
 
+  const track = () => {
+    const tracks = mediaStream()?.getVideoTracks();
+    if (tracks === undefined || tracks.length === 0) return;
+    return tracks[0];
+  };
+
+  // Capabilities will be used for zooming
+  const capabilities = () => track()?.getCapabilities();
+
+  createEffect(() => {
+    if (capabilities() === undefined) return;
+    console.debug("Capabilities", capabilities());
+  });
+
   const isSwapButtonVisible = () => {
     const count = devices()?.length;
     // Only show button if there is a camera to swap to
