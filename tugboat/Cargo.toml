@@ -7,11 +7,20 @@ edition = "2021"
 askama = "0.12.1"
 askama_axum = "0.4.0"
 axum.workspace = true
-bollard = "0.17.1"
-serde.workspace = true
+axum-extra = { version = "0.9.6", features = ["cookie-signed"] }
+base64 = "0.22.1"
+bitwarden = "1.0.0"
+bollard = "0.18.1"
+cookie = "0.18.1"
+postcard = { version = "1.1.1", default-features = false, features = ["alloc"] }
+serde = { workspace = true, features = ["derive", "rc"] }
 thiserror.workspace = true
+time = { version = "0.3.37", features = ["serde"] }
 tokio = { workspace = true, features = ["full"] }
 tokio-stream = "0.1.16"
 tower-http = { workspace = true, features = ["auth", "fs"] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+uuid = "1.11.0"
+#TODO make this only available in development. Not needed in production.
+dotenvy = "0.15.7"

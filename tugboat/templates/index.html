@@ -1,13 +1,14 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "layout.html" %}
 
-<head>
-    <title>Tugboat</title>
+{% block content %}
+<h1>Tugboat</h1>
+<p>tug tug tug</p>
+<a href="/signin">Sign in</a>
 
-</head>
+{% endblock %}
 
-<body>
-    <h1>Tugboat</h1>
-</body>
+{% block scripts %}
+<script src=/notifications.js></script>
+{% endblock %}
 
-</html>
+{% call super() %}
