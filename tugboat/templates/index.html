@@ -10,16 +10,9 @@
 <h2>Projects</h2>
 <a href="/new">New</a>
 <ul>
-    {% for container in containers %}
+    {% for project in projects %}
     <li>
-    {% if let Some(names) = container.names %}
-        {% for name in names %}
-            {{ name }}
-        {% endfor %}
-    {% endif %}
-    {% if let Some(status) = container.status %}
-        {{ status }}
-    {% endif %}
+        <a href="/{{ project.id }}">{{ project.name }}</a>
     </li>
     {% endfor %}
 </ul>

@@ -6,21 +6,32 @@ use askama::Template;
 use axum::extract::State;
 use axum::response::{IntoResponse, Redirect};
 use axum::Form;
-use bollard::container::ListContainersOptions;
-use bollard::secret::ContainerSummary;
 use libsql::named_params;
 use serde::Deserialize;
+
+#[derive(Deserialize)]
+struct Project {
+    id: Arc<str>,
+    name: Arc<str>,
+    image_name: Arc<str>,
+}
 
 #[derive(Template, Default)]
 #[template(path = "index.html")]
 pub(super) struct IndexTemplate {
-    containers: Vec<ContainerSummary>,
+    projects: Vec<Project>,
 }
 
 #[derive(thiserror::Error, Debug)]
 pub(super) enum GetIndexError {
-    #[error("Error getting containers: {0}")]
-    DockerError(#[from] bollard::errors::Error),
+    #[error("Error preparing SQL statement: {0}")]
+    PrepareStatementError(libsql::Error),
+    #[error("Error executing SQL statement: {0}")]
+    ExecuteStatementError(libsql::Error),
+    #[error("Error reading row: {0}")]
+    ReadRowError(libsql::Error),
+    #[error("Error deserializing row: {0}")]
+    DeserializeRowError(serde::de::value::Error),
 }
 
 impl IntoResponse for GetIndexError {
@@ -38,12 +49,25 @@ pub(super) async fn get_index_page(
         return Ok(Redirect::to("/signin").into_response());
     }
 
-    let containers = state
-        .docker
-        .list_containers(Option::<ListContainersOptions<String>>::None)
-        .await?;
+    let mut statement = state
+        .connection
+        .prepare("SELECT id, name, image_name FROM projects")
+        .await
+        .map_err(GetIndexError::PrepareStatementError)?;
 
-    Ok(IndexTemplate { containers }.into_response())
+    let mut rows = statement
+        .query(())
+        .await
+        .map_err(GetIndexError::ExecuteStatementError)?;
+
+    let mut projects = Vec::new();
+    while let Some(row) = rows.next().await.map_err(GetIndexError::ReadRowError)? {
+        let project =
+            libsql::de::from_row::<Project>(&row).map_err(GetIndexError::DeserializeRowError)?;
+        projects.push(project);
+    }
+
+    Ok(IndexTemplate { projects }.into_response())
 }
 
 #[derive(Template)]
