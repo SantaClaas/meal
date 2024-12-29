@@ -116,7 +116,13 @@ async fn main() -> Result<(), TugError> {
         .route("/signin", get(auth::get_sign_in).post(auth::create_sign_in))
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind((Ipv4Addr::new(0, 0, 0, 0), 3001))
+    let address = if cfg!(debug_assertions) {
+        Ipv4Addr::LOCALHOST
+    } else {
+        Ipv4Addr::new(0, 0, 0, 0)
+    };
+
+    let listener = tokio::net::TcpListener::bind((address, 3001))
         .await
         .unwrap();
 
