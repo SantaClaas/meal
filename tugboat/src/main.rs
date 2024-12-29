@@ -7,12 +7,11 @@ mod secret;
 use std::{net::Ipv4Addr, sync::Arc};
 
 use crate::auth::cookie;
-use askama::Template;
 use askama_axum::IntoResponse;
-use auth::{cookie::Key, AuthenticatedUser};
-use axum::{extract::State, response::Redirect, routing::get, Router};
+use auth::cookie::Key;
+use axum::{extract::State, routing::get, Router};
 use base64::{prelude::BASE64_URL_SAFE_NO_PAD, Engine};
-use bollard::{container::ListContainersOptions, secret::ContainerSummary, Docker};
+use bollard::Docker;
 use container::UpdateResult;
 use secret::Secrets;
 use tokio::{signal, sync::Mutex};

@@ -3,8 +3,10 @@ use crate::{auth::AuthenticatedUser, TugState};
 use askama::Template;
 use axum::extract::State;
 use axum::response::{IntoResponse, Redirect};
+use axum::Form;
 use bollard::container::ListContainersOptions;
 use bollard::secret::ContainerSummary;
+use serde::Deserialize;
 
 #[derive(Template, Default)]
 #[template(path = "index.html")]
@@ -24,7 +26,7 @@ impl IntoResponse for GetIndexError {
     }
 }
 
-pub(super) async fn get_index(
+pub(super) async fn get_index_page(
     State(state): State<TugState>,
     user: Option<AuthenticatedUser>,
 ) -> Result<impl IntoResponse, GetIndexError> {
@@ -39,4 +41,21 @@ pub(super) async fn get_index(
         .await?;
 
     Ok(IndexTemplate { containers }.into_response())
+}
+
+#[derive(Template)]
+#[template(path = "new project.html")]
+pub(super) struct NewProjectTemplate;
+
+pub(super) async fn get_new_page() -> NewProjectTemplate {
+    NewProjectTemplate
+}
+
+#[derive(Deserialize, Debug)]
+pub(super) struct CreateProjectRequest {
+    name: String,
+}
+
+pub(super) async fn create(Form(request): Form<CreateProjectRequest>) {
+    tracing::debug!("Request: {:?}", request);
 }
