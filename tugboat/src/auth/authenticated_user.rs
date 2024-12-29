@@ -1,8 +1,8 @@
 use axum::{
     async_trait,
     extract::{FromRef, FromRequestParts},
-    http::{request::Parts, HeaderMap, StatusCode},
-    response::{IntoResponse, Response},
+    http::{request::Parts, HeaderMap},
+    response::{IntoResponse, Redirect, Response},
 };
 use axum_extra::extract::{cookie::Key, SignedCookieJar};
 use thiserror::Error;
@@ -28,7 +28,7 @@ impl IntoResponse for Error {
     fn into_response(self) -> Response {
         match self {
             Error::NoCookie | Error::BadCookie(_) | Error::ExpiredCookie => {
-                StatusCode::UNAUTHORIZED.into_response()
+                (Redirect::to("/signin")).into_response()
             }
         }
     }
