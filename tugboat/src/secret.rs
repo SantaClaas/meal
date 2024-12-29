@@ -24,6 +24,7 @@ pub(super) enum ErrorType {
 #[derive(Debug)]
 enum Secret {
     UserSecret,
+    CookieSigningSecret,
 }
 
 #[derive(Error, Debug)]
@@ -51,10 +52,12 @@ pub(super) enum Error {
 #[derive(Clone)]
 pub(crate) struct Secrets {
     pub(crate) user_secret: Arc<str>,
+    pub(crate) cookie_signing_secret: Arc<str>,
 }
 
 const USER_SECRET_ID_VARIABLE: &str = "USER_SECRET_ID";
-const SECRET_ID_VARIABLES: &[&str] = &[USER_SECRET_ID_VARIABLE];
+const COOKIE_SIGNING_SECRET_ID: &str = "COOKIE_SIGNING_SECRET_ID";
+const SECRET_ID_VARIABLES: &[&str] = &[USER_SECRET_ID_VARIABLE, COOKIE_SIGNING_SECRET_ID];
 
 fn load_secret_ids() -> Result<HashMap<Uuid, &'static str>, LoadSecretIdError> {
     let mut secret_ids = HashMap::with_capacity(SECRET_ID_VARIABLES.len());
@@ -97,6 +100,7 @@ pub(super) async fn setup() -> Result<Secrets, Error> {
     let responses = client.secrets().get_by_ids(request).await?;
 
     let mut user_secret = None;
+    let mut cookie_signing_secret = None;
     for secret in responses.data {
         let Some(variable) = ids_by_variable.get(&secret.id) else {
             tracing::warn!(
@@ -108,6 +112,7 @@ pub(super) async fn setup() -> Result<Secrets, Error> {
 
         match *variable {
             USER_SECRET_ID_VARIABLE => user_secret = Some(secret.value),
+            COOKIE_SIGNING_SECRET_ID => cookie_signing_secret = Some(secret.value),
             //TODO make ids an enum to check compile time because this branch should not be reachable
             _ => {
                 tracing::warn!(
@@ -123,5 +128,12 @@ pub(super) async fn setup() -> Result<Secrets, Error> {
         .ok_or_else(|| Error::SecretNotProvided(Secret::UserSecret))?
         .into();
 
-    Ok(Secrets { user_secret })
+    let cookie_signing_secret = cookie_signing_secret
+        .ok_or_else(|| Error::SecretNotProvided(Secret::CookieSigningSecret))?
+        .into();
+
+    Ok(Secrets {
+        user_secret,
+        cookie_signing_secret,
+    })
 }

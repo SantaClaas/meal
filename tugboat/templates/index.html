@@ -1,14 +1,30 @@
 {% extends "layout.html" %}
 
 {% block content %}
-<h1>Tugboat</h1>
-<p>tug tug tug</p>
-<a href="/signin">Sign in</a>
+
+<hgroup>
+    <h1>Tugboat</h1>
+    <p>tug tug tug</p>
+</hgroup>
+
+<ul>
+    {% for container in containers %}
+    <li>
+    {% if let Some(names) = container.names %}
+        {% for name in names %}
+            {{ name }}
+        {% endfor %}
+    {% endif %}
+    {% if let Some(status) = container.status %}
+        {{ status }}
+    {% endif %}
+    </li>
+    {% endfor %}
+</ul>
 
 {% endblock %}
 
 {% block scripts %}
-<script src=/notifications.js></script>
 {% endblock %}
 
 {% call super() %}

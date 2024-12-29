@@ -8,12 +8,13 @@ use std::{collections::HashMap, env::VarError, net::Ipv4Addr, sync::Arc};
 use crate::auth::cookie;
 use askama::Template;
 use askama_axum::IntoResponse;
-use axum::{extract::State, routing::get, Router};
-use bollard::Docker;
+use auth::{cookie::Key, AuthenticatedUser};
+use axum::{extract::State, response::Redirect, routing::get, Router};
+use base64::{prelude::BASE64_URL_SAFE_NO_PAD, Engine};
+use bollard::{container::ListContainersOptions, secret::ContainerSummary, Docker};
 use container::UpdateResult;
 use secret::Secrets;
 use tokio::{signal, sync::Mutex};
-use tower_http::validate_request::ValidateRequestHeaderLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[derive(thiserror::Error, Debug)]
@@ -22,8 +23,10 @@ enum TugError {
     SecretError(#[from] secret::Error),
     #[error("Error setting up docker")]
     DockerError(#[from] bollard::errors::Error),
-    #[error("Error getting cookie key")]
-    CookieKeyError,
+    #[error("Error decoding cookie key")]
+    CookieDecodeError(#[from] base64::DecodeError),
+    #[error("Bad cookie key length")]
+    BadCookieKeyLength { expected: usize, actual: usize },
 }
 
 async fn update(State(state): State<TugState>) -> impl IntoResponse {
@@ -32,11 +35,37 @@ async fn update(State(state): State<TugState>) -> impl IntoResponse {
 
 #[derive(Template, Default)]
 #[template(path = "index.html")]
-struct IndexTemplate;
+struct IndexTemplate {
+    containers: Vec<ContainerSummary>,
+}
 
-async fn get_index(State(_state): State<TugState>) -> IndexTemplate {
-    // create
-    IndexTemplate
+#[derive(thiserror::Error, Debug)]
+enum GetIndexError {
+    #[error("Error getting containers: {0}")]
+    DockerError(#[from] bollard::errors::Error),
+}
+
+impl IntoResponse for GetIndexError {
+    fn into_response(self) -> axum::response::Response {
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+    }
+}
+
+async fn get_index(
+    State(state): State<TugState>,
+    user: Option<AuthenticatedUser>,
+) -> Result<impl IntoResponse, GetIndexError> {
+    // Don't show container server information to unauthenticated users
+    if user.is_none() {
+        return Ok(Redirect::to("/signin").into_response());
+    }
+
+    let containers = state
+        .docker
+        .list_containers(Option::<ListContainersOptions<String>>::None)
+        .await?;
+
+    Ok(IndexTemplate { containers }.into_response())
 }
 
 async fn shutdown_signal() {
@@ -91,12 +120,23 @@ async fn main() -> Result<(), TugError> {
     dotenvy::dotenv().expect("Expected to load .env file in development");
 
     let secrets = secret::setup().await?;
+    let cookie_key: [u8; Key::LENGTH] = BASE64_URL_SAFE_NO_PAD
+        .decode(secrets.cookie_signing_secret.as_ref())
+        .map_err(TugError::CookieDecodeError)?
+        .try_into()
+        .map_err(|secret: Vec<u8>| TugError::BadCookieKeyLength {
+            expected: Key::LENGTH,
+            actual: secret.len(),
+        })?;
+
+    let cookie_key = cookie::Key::from(cookie_key);
+
     tracing::info!("Setting up docker");
     let docker = docker::set_up()?;
     let update_lock: Arc<Mutex<()>> = Arc::default();
     let state = TugState {
         secrets,
-        cookie_key: cookie::Key::new().ok_or(TugError::CookieKeyError)?,
+        cookie_key,
         docker: docker.clone(),
         update_lock: update_lock.clone(),
     };

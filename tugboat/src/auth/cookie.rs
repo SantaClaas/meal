@@ -13,8 +13,18 @@ pub(crate) struct Key(AxumKey);
 
 pub(super) const NAME: &str = "session";
 impl Key {
+    pub(crate) const LENGTH: usize = 64;
     pub(crate) fn new() -> Option<Self> {
+        let j = AxumKey::try_generate().unwrap();
+        let data = j.master();
+        dbg!(BASE64_URL_SAFE_NO_PAD.encode(data));
         AxumKey::try_generate().map(Self)
+    }
+}
+
+impl From<[u8; Key::LENGTH]> for Key {
+    fn from(key: [u8; Key::LENGTH]) -> Self {
+        Self(AxumKey::from(&key))
     }
 }
 
