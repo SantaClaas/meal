@@ -1,6 +1,7 @@
 mod auth;
 mod container;
 mod docker;
+mod route;
 mod secret;
 
 use std::{net::Ipv4Addr, sync::Arc};
@@ -31,41 +32,6 @@ enum TugError {
 
 async fn update(State(state): State<TugState>) -> impl IntoResponse {
     container::update(&state.docker, &state.update_lock).await
-}
-
-#[derive(Template, Default)]
-#[template(path = "index.html")]
-struct IndexTemplate {
-    containers: Vec<ContainerSummary>,
-}
-
-#[derive(thiserror::Error, Debug)]
-enum GetIndexError {
-    #[error("Error getting containers: {0}")]
-    DockerError(#[from] bollard::errors::Error),
-}
-
-impl IntoResponse for GetIndexError {
-    fn into_response(self) -> axum::response::Response {
-        axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
-    }
-}
-
-async fn get_index(
-    State(state): State<TugState>,
-    user: Option<AuthenticatedUser>,
-) -> Result<impl IntoResponse, GetIndexError> {
-    // Don't show container server information to unauthenticated users
-    if user.is_none() {
-        return Ok(Redirect::to("/signin").into_response());
-    }
-
-    let containers = state
-        .docker
-        .list_containers(Option::<ListContainersOptions<String>>::None)
-        .await?;
-
-    Ok(IndexTemplate { containers }.into_response())
 }
 
 async fn shutdown_signal() {
@@ -152,7 +118,7 @@ async fn main() -> Result<(), TugError> {
 
     let app = Router::new()
         .route("/update", get(update))
-        .route("/", get(get_index))
+        .merge(route::create_router())
         .route("/signin", get(auth::get_sign_in).post(auth::create_sign_in))
         .with_state(state);
 
