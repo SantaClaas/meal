@@ -75,7 +75,9 @@ fn load_secret_ids() -> Result<HashMap<Uuid, Secret>, LoadSecretIdError> {
         Secret::UserSecret,
         Secret::CookieSigningSecret,
         Secret::LibSqlAuthToken,
+        Secret::DatabaseEncryptionKey,
     ];
+
     let mut secret_ids = HashMap::with_capacity(SECRETS.len());
 
     for secret in SECRETS {
@@ -115,7 +117,6 @@ pub(super) async fn setup() -> Result<Secrets, Error> {
     };
 
     let responses = client.secrets().get_by_ids(request).await?;
-
     let mut user_secret = None;
     let mut cookie_signing_secret = None;
     let mut lib_sql_auth_token = None;

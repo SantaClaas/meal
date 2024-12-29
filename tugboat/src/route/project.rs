@@ -60,6 +60,9 @@ pub(super) struct CreateProjectRequest {
     image_name: Arc<str>,
 }
 
-pub(super) async fn create(Form(request): Form<CreateProjectRequest>) {
+pub(super) async fn create(
+    State(state): State<TugState>,
+    Form(request): Form<CreateProjectRequest>,
+) {
     tracing::debug!("Request: {:?}", request);
 }
