@@ -21,10 +21,23 @@ pub(super) enum ErrorType {
     ParseError(#[from] uuid::Error),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 enum Secret {
     UserSecret,
     CookieSigningSecret,
+    LibSqlAuthToken,
+    DatabaseEncryptionKey,
+}
+
+impl Secret {
+    const fn get_variable(&self) -> &'static str {
+        match self {
+            Secret::UserSecret => "USER_SECRET_ID",
+            Secret::CookieSigningSecret => "COOKIE_SIGNING_SECRET_ID",
+            Secret::LibSqlAuthToken => "LIBSQL_AUTH_TOKEN_ID",
+            Secret::DatabaseEncryptionKey => "DATABASE_ENCRYPTION_KEY_ID",
+        }
+    }
 }
 
 #[derive(Error, Debug)]
@@ -53,26 +66,30 @@ pub(super) enum Error {
 pub(crate) struct Secrets {
     pub(crate) user_secret: Arc<str>,
     pub(crate) cookie_signing_secret: Arc<str>,
+    pub(crate) lib_sql_auth_token: String,
+    pub(crate) database_encryption_key: Arc<str>,
 }
 
-const USER_SECRET_ID_VARIABLE: &str = "USER_SECRET_ID";
-const COOKIE_SIGNING_SECRET_ID: &str = "COOKIE_SIGNING_SECRET_ID";
-const SECRET_ID_VARIABLES: &[&str] = &[USER_SECRET_ID_VARIABLE, COOKIE_SIGNING_SECRET_ID];
+fn load_secret_ids() -> Result<HashMap<Uuid, Secret>, LoadSecretIdError> {
+    const SECRETS: &[Secret] = &[
+        Secret::UserSecret,
+        Secret::CookieSigningSecret,
+        Secret::LibSqlAuthToken,
+    ];
+    let mut secret_ids = HashMap::with_capacity(SECRETS.len());
 
-fn load_secret_ids() -> Result<HashMap<Uuid, &'static str>, LoadSecretIdError> {
-    let mut secret_ids = HashMap::with_capacity(SECRET_ID_VARIABLES.len());
-    for variable in SECRET_ID_VARIABLES {
-        let value = env::var(variable).map_err(|error| LoadSecretIdError {
-            variable: (*variable).into(),
+    for secret in SECRETS {
+        let value = env::var(secret.get_variable()).map_err(|error| LoadSecretIdError {
+            variable: secret.get_variable().into(),
             source: ErrorType::VarError(error),
         })?;
 
-        let id = value.parse().map_err(|error| LoadSecretIdError {
-            variable: (*variable).into(),
+        let id: Uuid = value.parse().map_err(|error| LoadSecretIdError {
+            variable: secret.get_variable().into(),
             source: ErrorType::ParseError(error),
         })?;
 
-        secret_ids.insert(id, *variable);
+        secret_ids.insert(id, *secret);
     }
 
     Ok(secret_ids)
@@ -101,6 +118,8 @@ pub(super) async fn setup() -> Result<Secrets, Error> {
 
     let mut user_secret = None;
     let mut cookie_signing_secret = None;
+    let mut lib_sql_auth_token = None;
+    let mut database_encryption_key = None;
     for secret in responses.data {
         let Some(variable) = ids_by_variable.get(&secret.id) else {
             tracing::warn!(
@@ -110,17 +129,11 @@ pub(super) async fn setup() -> Result<Secrets, Error> {
             continue;
         };
 
-        match *variable {
-            USER_SECRET_ID_VARIABLE => user_secret = Some(secret.value),
-            COOKIE_SIGNING_SECRET_ID => cookie_signing_secret = Some(secret.value),
-            //TODO make ids an enum to check compile time because this branch should not be reachable
-            _ => {
-                tracing::warn!(
-                    "Received unknown secret with id {} and variable {}",
-                    secret.id,
-                    variable
-                );
-            }
+        match variable {
+            Secret::UserSecret => user_secret = Some(secret.value),
+            Secret::CookieSigningSecret => cookie_signing_secret = Some(secret.value),
+            Secret::LibSqlAuthToken => lib_sql_auth_token = Some(secret.value),
+            Secret::DatabaseEncryptionKey => database_encryption_key = Some(secret.value),
         }
     }
 
@@ -132,8 +145,17 @@ pub(super) async fn setup() -> Result<Secrets, Error> {
         .ok_or_else(|| Error::SecretNotProvided(Secret::CookieSigningSecret))?
         .into();
 
+    let lib_sql_auth_token =
+        lib_sql_auth_token.ok_or_else(|| Error::SecretNotProvided(Secret::LibSqlAuthToken))?;
+
+    let database_encryption_key = database_encryption_key
+        .ok_or_else(|| Error::SecretNotProvided(Secret::DatabaseEncryptionKey))?
+        .into();
+
     Ok(Secrets {
         user_secret,
         cookie_signing_secret,
+        lib_sql_auth_token,
+        database_encryption_key,
     })
 }

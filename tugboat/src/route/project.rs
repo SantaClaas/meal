@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{auth::AuthenticatedUser, TugState};
 
 use askama::Template;
@@ -53,7 +55,9 @@ pub(super) async fn get_new_page() -> NewProjectTemplate {
 
 #[derive(Deserialize, Debug)]
 pub(super) struct CreateProjectRequest {
-    name: String,
+    name: Arc<str>,
+    #[serde(rename = "image")]
+    image_name: Arc<str>,
 }
 
 pub(super) async fn create(Form(request): Form<CreateProjectRequest>) {

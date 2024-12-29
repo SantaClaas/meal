@@ -1,5 +1,6 @@
 mod auth;
 mod container;
+mod database;
 mod docker;
 mod route;
 mod secret;
@@ -24,9 +25,15 @@ enum TugError {
     #[error("Error setting up docker")]
     DockerError(#[from] bollard::errors::Error),
     #[error("Error decoding cookie key")]
-    CookieDecodeError(#[from] base64::DecodeError),
+    CookieDecodeError(base64::DecodeError),
     #[error("Bad cookie key length")]
     BadCookieKeyLength { expected: usize, actual: usize },
+    #[error("Error reading database URL: {0}")]
+    DatabaseUrlError(#[from] std::env::VarError),
+    #[error("Bad database key encoding: {0}")]
+    BadDatabaseKey(base64::DecodeError),
+    #[error("Error initializing database: {0}")]
+    DatabaseError(#[from] database::InitializeError),
 }
 
 async fn update(State(state): State<TugState>) -> impl IntoResponse {
@@ -68,6 +75,7 @@ struct TugState {
     /// Lock to avoid multiple updates at the same time
     /// Does not lock the docker instance as other tasks are still permitted
     update_lock: Arc<Mutex<()>>,
+    connection: libsql::Connection,
 }
 
 #[tokio::main]
@@ -85,6 +93,15 @@ async fn main() -> Result<(), TugError> {
     dotenvy::dotenv().expect("Expected to load .env file in development");
 
     let secrets = secret::setup().await?;
+
+    let url = std::env::var("LIBSQL_URL").map_err(TugError::DatabaseUrlError)?;
+    let key = BASE64_URL_SAFE_NO_PAD
+        .decode(secrets.database_encryption_key.as_ref())
+        .map_err(TugError::BadDatabaseKey)?
+        .into();
+
+    let connection = database::initialize(url, secrets.lib_sql_auth_token.clone(), key).await?;
+
     let cookie_key: [u8; Key::LENGTH] = BASE64_URL_SAFE_NO_PAD
         .decode(secrets.cookie_signing_secret.as_ref())
         .map_err(TugError::CookieDecodeError)?
@@ -104,6 +121,7 @@ async fn main() -> Result<(), TugError> {
         cookie_key,
         docker: docker.clone(),
         update_lock: update_lock.clone(),
+        connection,
     };
 
     tokio::spawn(async move {
