@@ -6,7 +6,7 @@ use axum::{
         ws::{self, WebSocket},
         Path, State, WebSocketUpgrade,
     },
-    http::{header, HeaderName, HeaderValue, StatusCode},
+    http::{HeaderName, HeaderValue, StatusCode},
     response::IntoResponse,
     routing::{get, post},
     Router,

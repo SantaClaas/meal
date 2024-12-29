@@ -1,6 +1,6 @@
-use std::{collections::HashMap, env::VarError, net::Ipv4Addr, sync::Arc};
+use std::collections::HashMap;
 
-use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::get, Router};
+use axum::{http::StatusCode, response::IntoResponse};
 use bollard::{
     container::{
         self, CreateContainerOptions, InspectContainerOptions, RemoveContainerOptions,
@@ -8,10 +8,10 @@ use bollard::{
     },
     image::CreateImageOptions,
     secret::{HostConfig, PortBinding},
-    Docker, API_DEFAULT_VERSION,
+    Docker,
 };
 
-use tokio::{signal, sync::Mutex};
+use tokio::sync::Mutex;
 use tokio_stream::StreamExt;
 
 pub(super) enum UpdateResult {

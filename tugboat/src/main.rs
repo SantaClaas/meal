@@ -3,7 +3,7 @@ mod container;
 mod docker;
 mod secret;
 
-use std::{collections::HashMap, env::VarError, net::Ipv4Addr, sync::Arc};
+use std::{net::Ipv4Addr, sync::Arc};
 
 use crate::auth::cookie;
 use askama::Template;
