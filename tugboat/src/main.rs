@@ -8,8 +8,8 @@ use std::{net::Ipv4Addr, sync::Arc};
 
 use crate::auth::cookie;
 use askama_axum::IntoResponse;
-use auth::cookie::Key;
-use axum::{extract::State, routing::get, Router};
+use auth::{cookie::Key, AuthenticatedUser};
+use axum::{extract::State, middleware::from_extractor_with_state, routing::get, Router};
 use base64::{prelude::BASE64_URL_SAFE_NO_PAD, Engine};
 use bollard::Docker;
 use container::UpdateResult;
@@ -118,6 +118,9 @@ async fn main() -> Result<(), TugError> {
     let app = Router::new()
         .route("/update", get(update))
         .merge(route::create_router())
+        .route_layer(from_extractor_with_state::<AuthenticatedUser, _>(
+            state.clone(),
+        ))
         .route("/signin", get(auth::get_sign_in).post(auth::create_sign_in))
         .with_state(state);
 
