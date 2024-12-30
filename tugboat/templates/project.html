@@ -2,13 +2,34 @@
 
 {% block content %}
 
-<h1>{{ project.name }}</h1>
+<a href="/">Back</a>
+<h1>{{ name }}</h1>
+<h2>Details</h2>
 <dl>
     <dt>Id</dt>
-    <dd>{{ project.id }}</dd>
+    <dd>{{ id }}</dd>
     <dt>Image Name</dt>
-    <dd>{{ project.image_name }}</dd>
+    <dd>{{ image_name }}</dd>
+    <dt>Deploy Token</dt>
+    <dd>
+        {% if is_token_configured %}
+        Configured
+        {% else %}
+        Not Configured
+        {% endif %}
+    </dd>
 </dl>
+
+<h2>Deployment</h2>
+<p>Create a token to authenticate your webhook request to trigger a deployment</p>
+{% if let Some(token) = token %}
+<p>Copy and store the token below securely. <strong>You will have to create new token if you lose it</strong>. For security we don't keep a copy of it. Use it as the value for the <code>Authorization</code> header in your webhook request.</p>
+<code>{{ token }}</code>
+{% endif %}
+
+<form action="/{{ id }}/token" method="post">
+    <button>Create Token</button>
+</form>
 
 {% endblock %}
 

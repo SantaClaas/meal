@@ -6,20 +6,26 @@ use askama::Template;
 use axum::extract::{Path, State};
 use axum::response::{IntoResponse, Redirect};
 use axum::Form;
+use base64::prelude::BASE64_URL_SAFE_NO_PAD;
+use base64::Engine;
+use getrandom::getrandom;
+use hkdf::Hkdf;
 use libsql::named_params;
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 
 #[derive(Deserialize)]
-struct Project {
+struct ProjectRow {
     id: Arc<str>,
     name: Arc<str>,
     image_name: Arc<str>,
+    token_hash: Option<Arc<[u8; 32]>>,
 }
 
 #[derive(Template, Default)]
 #[template(path = "index.html")]
 pub(super) struct IndexTemplate {
-    projects: Vec<Project>,
+    projects: Vec<ProjectRow>,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -63,7 +69,7 @@ pub(super) async fn get_index_page(
     let mut projects = Vec::new();
     while let Some(row) = rows.next().await.map_err(GetIndexError::ReadRowError)? {
         let project =
-            libsql::de::from_row::<Project>(&row).map_err(GetIndexError::DeserializeRowError)?;
+            libsql::de::from_row::<ProjectRow>(&row).map_err(GetIndexError::DeserializeRowError)?;
         projects.push(project);
     }
 
@@ -116,15 +122,7 @@ pub(super) async fn create(
         .await
         .map_err(CreateProjectError::ExecuteStatementError)?;
 
-    //TODO create an update token. Hash it and store the hash in the database
-    // Return the token to the user
     Ok(Redirect::to(&format!("/{}", id)))
-}
-
-#[derive(Template)]
-#[template(path = "project.html")]
-pub(super) struct ProjectTemplate {
-    project: Project,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -137,11 +135,56 @@ pub(super) enum GetProjectError {
     DeserializeRowError(serde::de::value::Error),
 }
 
-impl IntoResponse for GetProjectError {
+async fn get_project_row(
+    connection: &libsql::Connection,
+    project_id: Arc<str>,
+) -> Result<ProjectRow, GetProjectError> {
+    let mut statement = connection
+        .prepare("SELECT id, name, image_name, token_hash FROM projects WHERE id = :id")
+        .await
+        .map_err(GetProjectError::PrepareStatementError)?;
+
+    let rows = statement
+        .query_row(named_params!(":id": project_id))
+        .await
+        .map_err(GetProjectError::ExecuteStatementError)?;
+
+    libsql::de::from_row::<ProjectRow>(&rows).map_err(GetProjectError::DeserializeRowError)
+}
+
+#[derive(Template)]
+#[template(path = "project.html")]
+pub(super) struct ProjectTemplate {
+    id: Arc<str>,
+    name: Arc<str>,
+    image_name: Arc<str>,
+    is_token_configured: bool,
+    token: Option<Arc<str>>,
+}
+
+impl From<ProjectRow> for ProjectTemplate {
+    fn from(row: ProjectRow) -> Self {
+        ProjectTemplate {
+            id: row.id,
+            name: row.name,
+            image_name: row.image_name,
+            is_token_configured: row.token_hash.is_some(),
+            token: None,
+        }
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error(transparent)]
+pub(super) struct GetProjectDetailsError(#[from] GetProjectError);
+
+impl IntoResponse for GetProjectDetailsError {
     fn into_response(self) -> axum::response::Response {
         if matches!(
             self,
-            GetProjectError::ExecuteStatementError(libsql::Error::QueryReturnedNoRows)
+            GetProjectDetailsError(GetProjectError::ExecuteStatementError(
+                libsql::Error::QueryReturnedNoRows
+            ))
         ) {
             return axum::http::StatusCode::NOT_FOUND.into_response();
         }
@@ -150,24 +193,84 @@ impl IntoResponse for GetProjectError {
     }
 }
 
-pub(super) async fn get_project(
+pub(super) async fn get_project_details(
     State(state): State<TugState>,
     Path(project_id): Path<Arc<str>>,
-) -> Result<ProjectTemplate, GetProjectError> {
+) -> Result<ProjectTemplate, GetProjectDetailsError> {
+    let project = get_project_row(&state.connection, project_id.clone()).await?;
+    Ok(project.into())
+}
+
+#[derive(thiserror::Error, Debug)]
+pub(super) enum CreateTokenError {
+    #[error("Error loading project: {0}")]
+    LoadProjectError(#[from] GetProjectError),
+    #[error("Error creating token: {0}")]
+    CreateTokenError(#[from] getrandom::Error),
+    #[error("Error creating key: {0}")]
+    CreateKeyError(hkdf::InvalidPrkLength),
+    #[error("Error creating output key material: {0}")]
+    CreateOutputKeyMaterialError(hkdf::InvalidLength),
+    #[error("Error preparing SQL statement: {0}")]
+    PrepareStatementError(libsql::Error),
+    #[error("Error executing SQL statement: {0}")]
+    ExecuteStatementError(libsql::Error),
+}
+
+impl IntoResponse for CreateTokenError {
+    fn into_response(self) -> axum::response::Response {
+        if matches!(
+            self,
+            CreateTokenError::LoadProjectError(GetProjectError::ExecuteStatementError(
+                libsql::Error::QueryReturnedNoRows
+            ))
+        ) {
+            return axum::http::StatusCode::NOT_FOUND.into_response();
+        }
+
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+    }
+}
+
+pub(super) async fn create_token(
+    State(state): State<TugState>,
+    Path(project_id): Path<Arc<str>>,
+) -> Result<ProjectTemplate, CreateTokenError> {
+    // Load project early to bail if it doesn't exist
+    let project = get_project_row(&state.connection, project_id.clone()).await?;
+
+    let mut input_key_material = [0; 128];
+    getrandom(&mut input_key_material)?;
+    let hkdf =
+        Hkdf::<Sha256>::from_prk(&input_key_material).map_err(CreateTokenError::CreateKeyError)?;
+
+    let mut output_key_material = [0; 42];
+    hkdf.expand(&[], &mut output_key_material)
+        .map_err(CreateTokenError::CreateOutputKeyMaterialError)?;
+
+    let mut hasher = Sha256::new();
+    hasher.update(&output_key_material);
+
+    let result = hasher.finalize();
+
+    // Store hash in database
     let mut statement = state
         .connection
-        .prepare("SELECT id, name, image_name FROM projects WHERE id = :id")
+        .prepare("UPDATE projects SET token_hash = :token_hash WHERE id = :id")
         .await
-        .map_err(GetProjectError::PrepareStatementError)?;
+        .map_err(CreateTokenError::PrepareStatementError)?;
 
-    // The no row error is currently not handled but could be seen as no error and just not found
-    let rows = statement
-        .query_row(named_params!(":id": project_id))
+    let updated_rows = statement
+        .execute(named_params!(":token_hash": result, ":id":project.id))
         .await
-        .map_err(GetProjectError::ExecuteStatementError)?;
+        .map_err(CreateTokenError::ExecuteStatementError)?;
 
-    let project =
-        libsql::de::from_row::<Project>(&rows).map_err(GetProjectError::DeserializeRowError)?;
+    assert_eq!(updated_rows, 1, "Expected to update one row");
 
-    Ok(ProjectTemplate { project })
+    let token = BASE64_URL_SAFE_NO_PAD.encode(output_key_material);
+
+    let mut template = ProjectTemplate::from(project);
+    template.is_token_configured = true;
+    template.token = Some(Arc::from(token));
+    Ok(template)
 }
