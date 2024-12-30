@@ -1,0 +1,18 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<h1>{{ project.name }}</h1>
+<dl>
+    <dt>Id</dt>
+    <dd>{{ project.id }}</dd>
+    <dt>Image Name</dt>
+    <dd>{{ project.image_name }}</dd>
+</dl>
+
+{% endblock %}
+
+{% block scripts %}
+{% endblock %}
+
+{% call super() %}

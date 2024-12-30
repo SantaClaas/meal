@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{auth::AuthenticatedUser, TugState};
 
 use askama::Template;
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::response::{IntoResponse, Redirect};
 use axum::Form;
 use libsql::named_params;
@@ -112,9 +112,62 @@ pub(super) async fn create(
         .map_err(CreateProjectError::PrepareStatementError)?;
 
     statement
-        .execute(named_params!(":id": id, ":name": request.name, ":image_name":request.image_name))
+        .execute(named_params!(":id": id.clone(), ":name": request.name, ":image_name":request.image_name))
         .await
         .map_err(CreateProjectError::ExecuteStatementError)?;
 
-    Ok(Redirect::to("/"))
+    //TODO create an update token. Hash it and store the hash in the database
+    // Return the token to the user
+    Ok(Redirect::to(&format!("/{}", id)))
+}
+
+#[derive(Template)]
+#[template(path = "project.html")]
+pub(super) struct ProjectTemplate {
+    project: Project,
+}
+
+#[derive(thiserror::Error, Debug)]
+pub(super) enum GetProjectError {
+    #[error("Error preparing SQL statement: {0}")]
+    PrepareStatementError(libsql::Error),
+    #[error("Error executing SQL statement: {0}")]
+    ExecuteStatementError(libsql::Error),
+    #[error("Error deserializing row: {0}")]
+    DeserializeRowError(serde::de::value::Error),
+}
+
+impl IntoResponse for GetProjectError {
+    fn into_response(self) -> axum::response::Response {
+        if matches!(
+            self,
+            GetProjectError::ExecuteStatementError(libsql::Error::QueryReturnedNoRows)
+        ) {
+            return axum::http::StatusCode::NOT_FOUND.into_response();
+        }
+
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+    }
+}
+
+pub(super) async fn get_project(
+    State(state): State<TugState>,
+    Path(project_id): Path<Arc<str>>,
+) -> Result<ProjectTemplate, GetProjectError> {
+    let mut statement = state
+        .connection
+        .prepare("SELECT id, name, image_name FROM projects WHERE id = :id")
+        .await
+        .map_err(GetProjectError::PrepareStatementError)?;
+
+    // The no row error is currently not handled but could be seen as no error and just not found
+    let rows = statement
+        .query_row(named_params!(":id": project_id))
+        .await
+        .map_err(GetProjectError::ExecuteStatementError)?;
+
+    let project =
+        libsql::de::from_row::<Project>(&rows).map_err(GetProjectError::DeserializeRowError)?;
+
+    Ok(ProjectTemplate { project })
 }
