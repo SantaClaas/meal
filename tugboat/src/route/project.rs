@@ -1,3 +1,4 @@
+use std::fmt::Pointer;
 use std::sync::Arc;
 
 use crate::{auth::AuthenticatedUser, TugState};
@@ -14,11 +15,49 @@ use libsql::named_params;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
+#[derive(Deserialize, Clone, Eq, PartialEq, Hash)]
+pub(crate) struct Id(Arc<str>);
+
+impl AsRef<str> for Id {
+    fn as_ref(&self) -> &str {
+        self.0.as_ref()
+    }
+}
+
+impl std::fmt::Display for Id {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.as_ref().fmt(f)
+    }
+}
+
+#[derive(Deserialize)]
+pub(crate) struct ImageName(Arc<str>);
+
+impl AsRef<str> for ImageName {
+    fn as_ref(&self) -> &str {
+        self.0.as_ref()
+    }
+}
+
+impl std::fmt::Display for ImageName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.as_ref().fmt(f)
+    }
+}
+
+pub(crate) struct ContainerName(Arc<str>);
+
+impl AsRef<str> for ContainerName {
+    fn as_ref(&self) -> &str {
+        self.0.as_ref()
+    }
+}
+
 #[derive(Deserialize)]
 struct ProjectRow {
-    id: Arc<str>,
+    id: Id,
     name: Arc<str>,
-    image_name: Arc<str>,
+    image_name: ImageName,
     token_hash: Option<Arc<[u8; 32]>>,
 }
 
@@ -135,17 +174,14 @@ pub(super) enum GetError {
     DeserializeRowError(serde::de::value::Error),
 }
 
-async fn get_row(
-    connection: &libsql::Connection,
-    project_id: Arc<str>,
-) -> Result<ProjectRow, GetError> {
+async fn get_row(connection: &libsql::Connection, project_id: Id) -> Result<ProjectRow, GetError> {
     let mut statement = connection
         .prepare("SELECT id, name, image_name, token_hash FROM projects WHERE id = :id")
         .await
         .map_err(GetError::PrepareStatementError)?;
 
     let rows = statement
-        .query_row(named_params!(":id": project_id))
+        .query_row(named_params!(":id": project_id.as_ref()))
         .await
         .map_err(GetError::ExecuteStatementError)?;
 
@@ -155,9 +191,9 @@ async fn get_row(
 #[derive(Template)]
 #[template(path = "project.html")]
 pub(super) struct ProjectTemplate {
-    id: Arc<str>,
+    id: Id,
     name: Arc<str>,
-    image_name: Arc<str>,
+    image_name: ImageName,
     is_token_configured: bool,
     token: Option<Arc<str>>,
 }
@@ -195,7 +231,7 @@ impl IntoResponse for GetDetailsError {
 
 pub(super) async fn get_details(
     State(state): State<TugState>,
-    Path(project_id): Path<Arc<str>>,
+    Path(project_id): Path<Id>,
 ) -> Result<ProjectTemplate, GetDetailsError> {
     let project = get_row(&state.connection, project_id.clone()).await?;
     Ok(project.into())
@@ -234,7 +270,7 @@ impl IntoResponse for CreateTokenError {
 
 pub(super) async fn create_token(
     State(state): State<TugState>,
-    Path(project_id): Path<Arc<str>>,
+    Path(project_id): Path<Id>,
 ) -> Result<ProjectTemplate, CreateTokenError> {
     // Load project early to bail if it doesn't exist
     let project = get_row(&state.connection, project_id.clone()).await?;
@@ -261,7 +297,7 @@ pub(super) async fn create_token(
         .map_err(CreateTokenError::PrepareStatementError)?;
 
     let updated_rows = statement
-        .execute(named_params!(":token_hash": result, ":id":project.id))
+        .execute(named_params!(":token_hash": result, ":id": project.id.as_ref()))
         .await
         .map_err(CreateTokenError::ExecuteStatementError)?;
 
@@ -291,7 +327,7 @@ impl IntoResponse for DeleteError {
 
 pub(super) async fn delete(
     State(state): State<TugState>,
-    Path(project_id): Path<Arc<str>>,
+    Path(project_id): Path<Id>,
 ) -> Result<Redirect, DeleteError> {
     let mut statement = state
         .connection
@@ -300,7 +336,7 @@ pub(super) async fn delete(
         .map_err(DeleteError::PrepareStatementError)?;
 
     statement
-        .execute(named_params!(":id": project_id))
+        .execute(named_params!(":id": project_id.as_ref()))
         .await
         .map_err(DeleteError::ExecuteStatementError)?;
 

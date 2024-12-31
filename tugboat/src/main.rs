@@ -5,7 +5,7 @@ mod docker;
 mod route;
 mod secret;
 
-use std::{net::Ipv4Addr, sync::Arc};
+use std::{collections::HashMap, net::Ipv4Addr, sync::Arc};
 
 use crate::auth::cookie;
 use askama_axum::IntoResponse;
@@ -37,7 +37,7 @@ enum TugError {
 }
 
 async fn update(State(state): State<TugState>) -> impl IntoResponse {
-    container::update(&state.docker, &state.update_lock).await
+    container::update_melt(&state.docker, &state.update_lock).await
 }
 
 async fn shutdown_signal() {
@@ -76,6 +76,7 @@ struct TugState {
     /// Does not lock the docker instance as other tasks are still permitted
     update_lock: Arc<Mutex<()>>,
     connection: libsql::Connection,
+    update_locks: Arc<Mutex<HashMap<Arc<str>, Arc<Mutex<()>>>>>,
 }
 
 #[tokio::main]
@@ -122,11 +123,12 @@ async fn main() -> Result<(), TugError> {
         docker: docker.clone(),
         update_lock: update_lock.clone(),
         connection,
+        update_locks: Arc::default(),
     };
 
     tokio::spawn(async move {
         tracing::info!("Running initial update");
-        match container::update(&docker, update_lock.as_ref()).await {
+        match container::update_melt(&docker, update_lock.as_ref()).await {
             Ok(UpdateResult::Completed) => tracing::info!("Initial update completed"),
             Ok(UpdateResult::AlreadyStarted) => tracing::info!("Initial update already started"),
             Err(error) => tracing::error!("Error running initial update: {error}"),

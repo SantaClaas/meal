@@ -1,4 +1,4 @@
-mod project;
+pub(crate) mod project;
 
 use axum::{
     routing::{get, post},
