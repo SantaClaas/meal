@@ -126,7 +126,7 @@ pub(super) async fn create(
 }
 
 #[derive(thiserror::Error, Debug)]
-pub(super) enum GetProjectError {
+pub(super) enum GetError {
     #[error("Error preparing SQL statement: {0}")]
     PrepareStatementError(libsql::Error),
     #[error("Error executing SQL statement: {0}")]
@@ -135,21 +135,21 @@ pub(super) enum GetProjectError {
     DeserializeRowError(serde::de::value::Error),
 }
 
-async fn get_project_row(
+async fn get_row(
     connection: &libsql::Connection,
     project_id: Arc<str>,
-) -> Result<ProjectRow, GetProjectError> {
+) -> Result<ProjectRow, GetError> {
     let mut statement = connection
         .prepare("SELECT id, name, image_name, token_hash FROM projects WHERE id = :id")
         .await
-        .map_err(GetProjectError::PrepareStatementError)?;
+        .map_err(GetError::PrepareStatementError)?;
 
     let rows = statement
         .query_row(named_params!(":id": project_id))
         .await
-        .map_err(GetProjectError::ExecuteStatementError)?;
+        .map_err(GetError::ExecuteStatementError)?;
 
-    libsql::de::from_row::<ProjectRow>(&rows).map_err(GetProjectError::DeserializeRowError)
+    libsql::de::from_row::<ProjectRow>(&rows).map_err(GetError::DeserializeRowError)
 }
 
 #[derive(Template)]
@@ -176,13 +176,13 @@ impl From<ProjectRow> for ProjectTemplate {
 
 #[derive(thiserror::Error, Debug)]
 #[error(transparent)]
-pub(super) struct GetProjectDetailsError(#[from] GetProjectError);
+pub(super) struct GetDetailsError(#[from] GetError);
 
-impl IntoResponse for GetProjectDetailsError {
+impl IntoResponse for GetDetailsError {
     fn into_response(self) -> axum::response::Response {
         if matches!(
             self,
-            GetProjectDetailsError(GetProjectError::ExecuteStatementError(
+            GetDetailsError(GetError::ExecuteStatementError(
                 libsql::Error::QueryReturnedNoRows
             ))
         ) {
@@ -193,18 +193,18 @@ impl IntoResponse for GetProjectDetailsError {
     }
 }
 
-pub(super) async fn get_project_details(
+pub(super) async fn get_details(
     State(state): State<TugState>,
     Path(project_id): Path<Arc<str>>,
-) -> Result<ProjectTemplate, GetProjectDetailsError> {
-    let project = get_project_row(&state.connection, project_id.clone()).await?;
+) -> Result<ProjectTemplate, GetDetailsError> {
+    let project = get_row(&state.connection, project_id.clone()).await?;
     Ok(project.into())
 }
 
 #[derive(thiserror::Error, Debug)]
 pub(super) enum CreateTokenError {
     #[error("Error loading project: {0}")]
-    LoadProjectError(#[from] GetProjectError),
+    LoadProjectError(#[from] GetError),
     #[error("Error creating token: {0}")]
     CreateTokenError(#[from] getrandom::Error),
     #[error("Error creating key: {0}")]
@@ -221,7 +221,7 @@ impl IntoResponse for CreateTokenError {
     fn into_response(self) -> axum::response::Response {
         if matches!(
             self,
-            CreateTokenError::LoadProjectError(GetProjectError::ExecuteStatementError(
+            CreateTokenError::LoadProjectError(GetError::ExecuteStatementError(
                 libsql::Error::QueryReturnedNoRows
             ))
         ) {
@@ -237,7 +237,7 @@ pub(super) async fn create_token(
     Path(project_id): Path<Arc<str>>,
 ) -> Result<ProjectTemplate, CreateTokenError> {
     // Load project early to bail if it doesn't exist
-    let project = get_project_row(&state.connection, project_id.clone()).await?;
+    let project = get_row(&state.connection, project_id.clone()).await?;
 
     let mut input_key_material = [0; 128];
     getrandom(&mut input_key_material)?;
@@ -273,4 +273,36 @@ pub(super) async fn create_token(
     template.is_token_configured = true;
     template.token = Some(Arc::from(token));
     Ok(template)
+}
+
+#[derive(thiserror::Error, Debug)]
+pub(super) enum DeleteError {
+    #[error("Error preparing SQL statement: {0}")]
+    PrepareStatementError(libsql::Error),
+    #[error("Error executing SQL statement: {0}")]
+    ExecuteStatementError(libsql::Error),
+}
+
+impl IntoResponse for DeleteError {
+    fn into_response(self) -> axum::response::Response {
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+    }
+}
+
+pub(super) async fn delete(
+    State(state): State<TugState>,
+    Path(project_id): Path<Arc<str>>,
+) -> Result<Redirect, DeleteError> {
+    let mut statement = state
+        .connection
+        .prepare("DELETE FROM projects WHERE id = :id")
+        .await
+        .map_err(DeleteError::PrepareStatementError)?;
+
+    statement
+        .execute(named_params!(":id": project_id))
+        .await
+        .map_err(DeleteError::ExecuteStatementError)?;
+
+    Ok(Redirect::to("/"))
 }
