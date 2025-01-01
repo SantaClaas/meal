@@ -1,4 +1,7 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+};
 
 use askama::Template;
 use axum::{
@@ -8,7 +11,7 @@ use axum::{
     Form,
 };
 use bollard::{
-    container::{self, CreateContainerOptions},
+    container::{self, CreateContainerOptions, ListContainersOptions},
     image::CreateImageOptions,
     secret::{HostConfig, PortBinding},
     Docker,
@@ -75,7 +78,10 @@ pub(super) enum GetContainersError {
 
 async fn get_containers(docker: &Docker) -> Result<Vec<Container>, GetContainersError> {
     docker
-        .list_containers::<String>(None)
+        .list_containers(Some(ListContainersOptions {
+            filters: HashMap::from([("label", vec![LABEL_TAG])]),
+            ..Default::default()
+        }))
         .await
         .map_err(GetContainersError::ListError)?
         .into_iter()
@@ -143,6 +149,9 @@ impl IntoResponse for CreateError {
     }
 }
 
+/// Tag to mark containers managed by tugboat
+const LABEL_TAG: &str = "moe.cla.tugboat.tugged";
+
 pub(super) async fn create(
     State(state): State<TugState>,
     Form(request): Form<CreateRequest>,
@@ -183,6 +192,7 @@ pub(super) async fn create(
         image: Some(request.image.as_ref()),
         // exposed_ports: Some(HashMap::from([("3000", HashMap::default())])),
         host_config: Some(host_configuration),
+        labels: Some(HashMap::from([(LABEL_TAG, "")])),
         ..Default::default()
     };
 
