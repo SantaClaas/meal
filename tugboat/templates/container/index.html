@@ -10,7 +10,7 @@
 <h2>Containers</h2>
 
 <button popovertarget="create" popovertargetaction="show">Create New</button>
-<dialog id="create" popover="manual">
+<dialog id="create" popover>
     <form method="post" action="/containers">
         <h3>Create New Container</h3>
         <label for="name">Name</label>
@@ -33,8 +33,19 @@
                 <dd>{{ container.id }}</dd>
                 <dt>Image</dt>
                 <dd>{{ container.image }}</dd>
+                <dt>Deploy Token</dt>
+                <dd>
+                    {% if container.is_token_configured %}
+                    Configured
+                    {% else %}
+                    Not Configured
+                    {% endif %}
+                </dd>
             </dl>
+
+            <button>Create Token</button>
         </dialog>
+
     </li>
     {% endfor %}
 </ul>

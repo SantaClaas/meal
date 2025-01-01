@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
 use askama::Template;
 use axum::{
@@ -25,6 +22,7 @@ struct Container {
     id: Arc<str>,
     name: Arc<str>,
     image: Arc<str>,
+    is_token_configured: bool,
 }
 
 #[derive(Template)]
@@ -79,7 +77,7 @@ pub(super) enum GetContainersError {
 async fn get_containers(docker: &Docker) -> Result<Vec<Container>, GetContainersError> {
     docker
         .list_containers(Some(ListContainersOptions {
-            filters: HashMap::from([("label", vec![LABEL_TAG])]),
+            filters: HashMap::from([("label", vec![label::TAG])]),
             ..Default::default()
         }))
         .await
@@ -97,10 +95,16 @@ async fn get_containers(docker: &Docker) -> Result<Vec<Container>, GetContainers
 
             let image = container.image.ok_or(GetContainersError::NoImage)?;
 
+            let is_token_configured = container
+                .labels
+                .map(|labels| labels.contains_key(label::DEPLOY_TOKEN))
+                .unwrap_or_default();
+
             Ok(Container {
                 id: id.as_str().into(),
                 name: name.into(),
                 image: image.into(),
+                is_token_configured,
             })
         })
         .collect()
@@ -149,8 +153,11 @@ impl IntoResponse for CreateError {
     }
 }
 
-/// Tag to mark containers managed by tugboat
-const LABEL_TAG: &str = "moe.cla.tugboat.tugged";
+mod label {
+    /// Tag to mark containers managed by tugboat
+    pub(super) const TAG: &str = "moe.cla.tugboat.tugged";
+    pub(super) const DEPLOY_TOKEN: &str = "moe.cla.tugboat.deploy-token";
+}
 
 pub(super) async fn create(
     State(state): State<TugState>,
@@ -192,7 +199,7 @@ pub(super) async fn create(
         image: Some(request.image.as_ref()),
         // exposed_ports: Some(HashMap::from([("3000", HashMap::default())])),
         host_config: Some(host_configuration),
-        labels: Some(HashMap::from([(LABEL_TAG, "")])),
+        labels: Some(HashMap::from([(label::TAG, "")])),
         ..Default::default()
     };
 
