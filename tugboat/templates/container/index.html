@@ -1,0 +1,56 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<hgroup>
+    <h1>Tugboat</h1>
+    <p>tug tug tug</p>
+</hgroup>
+
+<h2>Containers</h2>
+
+<button popovertarget="create" popovertargetaction="show">Create New</button>
+<dialog id="create" popover="manual">
+    <form method="post" action="/containers">
+        <h3>Create New Container</h3>
+        <label for="name">Name</label>
+        <input type="text" id="name" name="name" required pattern="[a-zA-Z0-9][a-zA-Z0-9_.\-]+" autocorrect="off" placeholder="tugboat">
+        <label for="image">Image</label>
+        <input type="text" id="image" name="image" required list="images" autocorrect="off" autocapitalize="off" placeholder="ghcr.io/santaclaas/tugboat:main">
+        <button type="button" popovertarget="create" popovertargetaction="hide">Cancel</button>
+        <button type="submit">Create</button>
+    </form>
+</dialog>
+
+<ul>
+    {% for container in containers %}
+    <li>
+        <button popovertarget="details-{{ container.id }}">{{ container.name }}</button>
+        <dialog id="details-{{ container.id }}" popover>
+            <h3>{{ container.name }}</h3>
+            <dl>
+                <dt>Id</dt>
+                <dd>{{ container.id }}</dd>
+                <dt>Image</dt>
+                <dd>{{ container.image }}</dd>
+            </dl>
+        </dialog>
+    </li>
+    {% endfor %}
+</ul>
+
+{# Stuff that is not as important to be rendered #}
+{% if let Some(images) = image_suggestions %}
+<datalist id="images">
+{% for image in images %}
+    <option value="{{ image }}"></option>
+{% endfor %}
+</datalist>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+{% endblock %}
+
+{% call super() %}

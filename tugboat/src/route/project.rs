@@ -1,4 +1,3 @@
-use std::fmt::Pointer;
 use std::sync::Arc;
 
 use crate::{auth::AuthenticatedUser, TugState};
@@ -62,7 +61,7 @@ struct ProjectRow {
 }
 
 #[derive(Template, Default)]
-#[template(path = "index.html")]
+#[template(path = "project/index.html")]
 pub(super) struct IndexTemplate {
     projects: Vec<ProjectRow>,
 }
@@ -116,7 +115,7 @@ pub(super) async fn get_index_page(
 }
 
 #[derive(Template)]
-#[template(path = "new project.html")]
+#[template(path = "project/new.html")]
 pub(super) struct NewProjectTemplate;
 
 pub(super) async fn get_new_page() -> NewProjectTemplate {
@@ -189,7 +188,7 @@ async fn get_row(connection: &libsql::Connection, project_id: Id) -> Result<Proj
 }
 
 #[derive(Template)]
-#[template(path = "project.html")]
+#[template(path = "project/details.html")]
 pub(super) struct ProjectTemplate {
     id: Id,
     name: Arc<str>,

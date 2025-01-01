@@ -178,9 +178,7 @@ pub(super) async fn update_melt(
     let response = docker.create_container(options, configuration).await?;
 
     tracing::debug!("Starting container");
-    docker
-        .start_container(&response.id, None::<StartContainerOptions<String>>)
-        .await?;
+    docker.start_container::<&str>(&response.id, None).await?;
 
     tracing::debug!("Started container");
 
