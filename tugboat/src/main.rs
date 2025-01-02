@@ -128,11 +128,11 @@ async fn main() -> Result<(), TugError> {
 
     tokio::spawn(async move {
         tracing::info!("Running initial update");
-        match container::update_melt(&docker, update_lock.as_ref()).await {
-            Ok(UpdateResult::Completed) => tracing::info!("Initial update completed"),
-            Ok(UpdateResult::AlreadyStarted) => tracing::info!("Initial update already started"),
-            Err(error) => tracing::error!("Error running initial update: {error}"),
-        }
+
+        //TODO get managed (tagged) containers
+        //TODO get their images
+        //TODO pull their images
+        //TODO if the image is different, recreate the container
     });
 
     let app = Router::new()

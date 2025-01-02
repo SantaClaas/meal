@@ -100,6 +100,12 @@ async fn get_containers(docker: &Docker) -> Result<Vec<Container>, GetContainers
                 .map(|labels| labels.contains_key(label::DEPLOY_TOKEN))
                 .unwrap_or_default();
 
+            container.ports.inspect(|ports| {
+                for port in ports {
+                    tracing::info!("Port: {:?}", port);
+                }
+            });
+
             Ok(Container {
                 id: id.as_str().into(),
                 name: name.into(),
@@ -129,9 +135,14 @@ pub(super) async fn get_index(
 }
 
 #[derive(Deserialize)]
+struct Port(u16);
+
+#[derive(Deserialize)]
 pub(super) struct CreateRequest {
     name: Arc<str>,
     image: Arc<str>,
+    container_port: Option<Port>,
+    host_port: Option<Port>,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -184,21 +195,28 @@ pub(super) async fn create(
         platform: Some("linux/amd64"),
     });
 
-    let host_configuration = HostConfig {
-        port_bindings: Some(HashMap::from([(
-            "3000/tcp".to_string(),
-            Some(vec![PortBinding {
-                host_ip: Some("0.0.0.0".to_string()),
-                host_port: Some("3000".to_string()),
-            }]),
-        )])),
-        ..Default::default()
+    let host_configuration = if let (Some(container_port), Some(host_port)) =
+        (request.container_port, request.host_port)
+    {
+        Some(HostConfig {
+            port_bindings: Some(HashMap::from([(
+                // "3000/tcp".to_string(),
+                format!("{}/tcp", container_port.0),
+                Some(vec![PortBinding {
+                    host_ip: Some("0.0.0.0".to_string()),
+                    host_port: Some(host_port.0.to_string()),
+                }]),
+            )])),
+            ..Default::default()
+        })
+    } else {
+        None
     };
 
     let configuration = container::Config {
         image: Some(request.image.as_ref()),
         // exposed_ports: Some(HashMap::from([("3000", HashMap::default())])),
-        host_config: Some(host_configuration),
+        host_config: host_configuration,
         labels: Some(HashMap::from([(label::TAG, "")])),
         ..Default::default()
     };
