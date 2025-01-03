@@ -286,7 +286,7 @@ pub(super) async fn create_token(
     let mut hasher = Sha256::new();
     hasher.update(&output_key_material);
 
-    let result = hasher.finalize();
+    let hash = hasher.finalize();
 
     // Store hash in database
     let mut statement = state
@@ -296,7 +296,7 @@ pub(super) async fn create_token(
         .map_err(CreateTokenError::PrepareStatementError)?;
 
     let updated_rows = statement
-        .execute(named_params!(":token_hash": result, ":id": project.id.as_ref()))
+        .execute(named_params!(":token_hash": hash, ":id": project.id.as_ref()))
         .await
         .map_err(CreateTokenError::ExecuteStatementError)?;
 

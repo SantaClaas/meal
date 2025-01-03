@@ -14,6 +14,7 @@ use axum::{extract::State, middleware::from_extractor_with_state, routing::get, 
 use base64::{prelude::BASE64_URL_SAFE_NO_PAD, Engine};
 use bollard::Docker;
 use container::UpdateResult;
+use route::collect_garbage;
 use secret::Secrets;
 use tokio::{signal, sync::Mutex};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -122,7 +123,7 @@ async fn main() -> Result<(), TugError> {
         cookie_key,
         docker: docker.clone(),
         update_lock: update_lock.clone(),
-        connection,
+        connection: connection.clone(),
         update_locks: Arc::default(),
     };
 
@@ -134,6 +135,9 @@ async fn main() -> Result<(), TugError> {
         //TODO pull their images
         //TODO if the image is different, recreate the container
     });
+
+    // Set up background workers
+    let _handle = tokio::spawn(collect_garbage(state.clone()));
 
     let app = Router::new()
         .route("/update", get(update))

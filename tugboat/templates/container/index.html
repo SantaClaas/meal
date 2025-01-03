@@ -41,17 +41,14 @@
                 <dd>{{ container.id }}</dd>
                 <dt>Image</dt>
                 <dd>{{ container.image }}</dd>
-                <dt>Deploy Token</dt>
-                <dd>
-                    {% if container.is_token_configured %}
-                    Configured
-                    {% else %}
-                    Not Configured
-                    {% endif %}
-                </dd>
             </dl>
 
-            <button>Create Token</button>
+            <h4>Deployment</h4>
+            <p>Create a token to authenticate your webhook request to trigger a deployment</p>
+
+            <form action="/containers/{{ container.id }}/token" method="post">
+                <button type="submit">Create Token</button>
+            </form>
         </dialog>
 
     </li>

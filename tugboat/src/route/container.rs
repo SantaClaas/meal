@@ -1,19 +1,24 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use askama::Template;
 use axum::{
-    extract::State,
+    extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Redirect, Response},
     Form,
 };
+use base64::{prelude::BASE64_URL_SAFE_NO_PAD, Engine};
 use bollard::{
     container::{self, CreateContainerOptions, ListContainersOptions},
     image::CreateImageOptions,
     secret::{HostConfig, PortBinding},
     Docker,
 };
+use getrandom::getrandom;
+use hkdf::Hkdf;
+use libsql::{named_params, Connection};
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 use tokio_stream::StreamExt;
 
 use crate::TugState;
@@ -22,7 +27,6 @@ struct Container {
     id: Arc<str>,
     name: Arc<str>,
     image: Arc<str>,
-    is_token_configured: bool,
 }
 
 #[derive(Template)]
@@ -95,22 +99,10 @@ async fn get_containers(docker: &Docker) -> Result<Vec<Container>, GetContainers
 
             let image = container.image.ok_or(GetContainersError::NoImage)?;
 
-            let is_token_configured = container
-                .labels
-                .map(|labels| labels.contains_key(label::DEPLOY_TOKEN))
-                .unwrap_or_default();
-
-            container.ports.inspect(|ports| {
-                for port in ports {
-                    tracing::info!("Port: {:?}", port);
-                }
-            });
-
             Ok(Container {
                 id: id.as_str().into(),
                 name: name.into(),
                 image: image.into(),
-                is_token_configured,
             })
         })
         .collect()
@@ -167,7 +159,6 @@ impl IntoResponse for CreateError {
 mod label {
     /// Tag to mark containers managed by tugboat
     pub(super) const TAG: &str = "moe.cla.tugboat.tugged";
-    pub(super) const DEPLOY_TOKEN: &str = "moe.cla.tugboat.deploy-token";
 }
 
 pub(super) async fn create(
@@ -237,4 +228,146 @@ pub(super) async fn create(
     tracing::debug!("Started container");
 
     Ok(Redirect::to("/containers"))
+}
+
+#[derive(thiserror::Error, Debug)]
+pub(super) enum CreateTokenError {
+    #[error("Error loading container: {0}")]
+    LoadContainerError(bollard::errors::Error),
+    #[error("Error creating token: {0}")]
+    CreateTokenError(#[from] getrandom::Error),
+    #[error("Error creating key: {0}")]
+    CreateKeyError(hkdf::InvalidPrkLength),
+    #[error("Error creating output key material: {0}")]
+    CreateOutputKeyMaterialError(hkdf::InvalidLength),
+    #[error("Error preparing SQL statement: {0}")]
+    PrepareStatementError(libsql::Error),
+    #[error("Error executing SQL statement: {0}")]
+    ExecuteStatementError(libsql::Error),
+}
+
+impl IntoResponse for CreateTokenError {
+    fn into_response(self) -> axum::response::Response {
+        if let Self::LoadContainerError(bollard::errors::Error::DockerResponseServerError {
+            status_code: 404,
+            message: _,
+        }) = self
+        {
+            return StatusCode::NOT_FOUND.into_response();
+        }
+
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR.into_response()
+    }
+}
+
+#[derive(Template)]
+#[template(path = "container/token.html")]
+pub(super) struct CreateTokenResultTemplate {
+    token: Arc<str>,
+}
+
+pub(super) async fn create_token(
+    State(state): State<TugState>,
+    Path(container_id): Path<Arc<str>>,
+) -> Result<CreateTokenResultTemplate, CreateTokenError> {
+    let _container = state
+        .docker
+        .inspect_container(container_id.as_ref(), None)
+        .await
+        .map_err(CreateTokenError::LoadContainerError)?;
+
+    let mut input_key_material = [0; 128];
+    getrandom(&mut input_key_material)?;
+    let hkdf =
+        Hkdf::<Sha256>::from_prk(&input_key_material).map_err(CreateTokenError::CreateKeyError)?;
+
+    let mut output_key_material = [0; 42];
+    hkdf.expand(&[], &mut output_key_material)
+        .map_err(CreateTokenError::CreateOutputKeyMaterialError)?;
+
+    let mut hasher = Sha256::new();
+    hasher.update(&output_key_material);
+
+    let hash = hasher.finalize();
+
+    // Store hash in database
+    let mut statement = state
+        .connection
+        .prepare(
+            "INSERT OR REPLACE INTO tokens (container_id, token_hash) VALUES (:container_id, :token_hash)",
+        )
+        .await
+        .map_err(CreateTokenError::PrepareStatementError)?;
+
+    let updated_rows = statement
+        .execute(named_params! {
+            ":container_id": container_id.as_ref(),
+            ":token_hash": hash.as_slice(),
+        })
+        .await
+        .map_err(CreateTokenError::ExecuteStatementError)?;
+
+    assert_eq!(updated_rows, 1, "Expected to update one row");
+    let token = BASE64_URL_SAFE_NO_PAD.encode(output_key_material).into();
+
+    Ok(CreateTokenResultTemplate { token })
+}
+
+/// Runs forever and cleans up expired app data
+pub(crate) async fn collect_garbage(state: TugState) {
+    // It is not important that it cleans exactly, but it is important that it happens regularly
+    // Duration from minutes is experimental currently
+    let mut interval = tokio::time::interval(Duration::from_secs(24 * 60 * 60));
+    loop {
+        interval.tick().await;
+        // Clean up dead containers
+        let result = state
+            .docker
+            .list_containers(Some(ListContainersOptions {
+                all: true,
+                filters: HashMap::from([("label", vec![label::TAG])]),
+                ..Default::default()
+            }))
+            .await;
+
+        let container_ids: Vec<String> = match result {
+            Ok(containers) => containers
+                .into_iter()
+                .filter_map(|container| container.id)
+                .collect(),
+            Err(error) => {
+                tracing::error!("Error listing containers for database cleanup: {:?}", error);
+                continue;
+            }
+        };
+
+        if container_ids.is_empty() {
+            continue;
+        }
+
+        // Bail before deleting all containers
+        assert!(
+            container_ids.len() < 32766,
+            "Expected containers to not exceed parameter limit"
+        );
+
+        let query = format!(
+            "DELETE FROM tokens WHERE container_id NOT IN ({})",
+            (1..=container_ids.len())
+                .map(|index| format!("?{index}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+
+        match state.connection.execute(&query, container_ids).await {
+            Ok(deleted_rows) => {
+                tracing::info!(
+                    "Cleaned up {deleted_rows} containers from database that no longer exist"
+                )
+            }
+            Err(error) => {
+                tracing::error!("Error cleaning up containers from database: {:?}", error)
+            }
+        };
+    }
 }
