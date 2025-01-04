@@ -5,18 +5,20 @@ mod docker;
 mod route;
 mod secret;
 
-use std::{collections::HashMap, net::Ipv4Addr, sync::Arc};
+use std::{collections::HashMap, iter::once, net::Ipv4Addr, sync::Arc};
 
 use crate::auth::cookie;
 use askama_axum::IntoResponse;
 use auth::{cookie::Key, AuthenticatedUser};
-use axum::{extract::State, middleware::from_extractor_with_state, routing::get, Router};
+use axum::{
+    extract::State, http::header, middleware::from_extractor_with_state, routing::get, Router,
+};
 use base64::{prelude::BASE64_URL_SAFE_NO_PAD, Engine};
 use bollard::Docker;
-use container::UpdateResult;
 use route::collect_garbage;
 use secret::Secrets;
 use tokio::{signal, sync::Mutex};
+use tower_http::sensitive_headers::SetSensitiveRequestHeadersLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[derive(thiserror::Error, Debug)]
@@ -141,11 +143,14 @@ async fn main() -> Result<(), TugError> {
 
     let app = Router::new()
         .route("/update", get(update))
-        .merge(route::create_router())
+        .merge(route::create_router(connection.clone()))
         .route_layer(from_extractor_with_state::<AuthenticatedUser, _>(
             state.clone(),
         ))
         .route("/signin", get(auth::get_sign_in).post(auth::create_sign_in))
+        .layer(SetSensitiveRequestHeadersLayer::new(once(
+            header::AUTHORIZATION,
+        )))
         .with_state(state);
 
     let address = if cfg!(debug_assertions) {

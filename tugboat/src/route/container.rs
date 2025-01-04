@@ -7,21 +7,20 @@ use axum::{
     response::{IntoResponse, Redirect, Response},
     Form,
 };
-use base64::{prelude::BASE64_URL_SAFE_NO_PAD, Engine};
 use bollard::{
     container::{self, CreateContainerOptions, ListContainersOptions},
     image::CreateImageOptions,
     secret::{HostConfig, PortBinding},
     Docker,
 };
-use getrandom::getrandom;
-use hkdf::Hkdf;
-use libsql::{named_params, Connection};
+use libsql::named_params;
 use serde::Deserialize;
-use sha2::{Digest, Sha256};
+use sha2::Digest;
 use tokio_stream::StreamExt;
 
-use crate::TugState;
+use crate::{route::token::Token, TugState};
+
+use super::token;
 
 struct Container {
     id: Arc<str>,
@@ -235,11 +234,9 @@ pub(super) enum CreateTokenError {
     #[error("Error loading container: {0}")]
     LoadContainerError(bollard::errors::Error),
     #[error("Error creating token: {0}")]
-    CreateTokenError(#[from] getrandom::Error),
-    #[error("Error creating key: {0}")]
-    CreateKeyError(hkdf::InvalidPrkLength),
-    #[error("Error creating output key material: {0}")]
-    CreateOutputKeyMaterialError(hkdf::InvalidLength),
+    CreateTokenError(#[from] token::CreateError),
+    #[error("Error hashing token: {0}")]
+    HashTokenError(#[from] token::HashError),
     #[error("Error preparing SQL statement: {0}")]
     PrepareStatementError(libsql::Error),
     #[error("Error executing SQL statement: {0}")]
@@ -276,19 +273,9 @@ pub(super) async fn create_token(
         .await
         .map_err(CreateTokenError::LoadContainerError)?;
 
-    let mut input_key_material = [0; 128];
-    getrandom(&mut input_key_material)?;
-    let hkdf =
-        Hkdf::<Sha256>::from_prk(&input_key_material).map_err(CreateTokenError::CreateKeyError)?;
+    let token = Token::new()?;
 
-    let mut output_key_material = [0; 42];
-    hkdf.expand(&[], &mut output_key_material)
-        .map_err(CreateTokenError::CreateOutputKeyMaterialError)?;
-
-    let mut hasher = Sha256::new();
-    hasher.update(&output_key_material);
-
-    let hash = hasher.finalize();
+    let hash = token.hash()?;
 
     // Store hash in database
     let mut statement = state
@@ -302,15 +289,16 @@ pub(super) async fn create_token(
     let updated_rows = statement
         .execute(named_params! {
             ":container_id": container_id.as_ref(),
-            ":token_hash": hash.as_slice(),
+            ":token_hash": hash.as_ref(),
         })
         .await
         .map_err(CreateTokenError::ExecuteStatementError)?;
 
     assert_eq!(updated_rows, 1, "Expected to update one row");
-    let token = BASE64_URL_SAFE_NO_PAD.encode(output_key_material).into();
 
-    Ok(CreateTokenResultTemplate { token })
+    Ok(CreateTokenResultTemplate {
+        token: token.to_base64(),
+    })
 }
 
 /// Runs forever and cleans up expired app data
@@ -345,11 +333,13 @@ pub(crate) async fn collect_garbage(state: TugState) {
             continue;
         }
 
-        // Bail before deleting all containers
-        assert!(
-            container_ids.len() < 32766,
-            "Expected containers to not exceed parameter limit"
-        );
+        if container_ids.len() >= i16::MAX as usize {
+            tracing::error!(
+                "Expected containers to not exceed parameter limit, got {}",
+                container_ids.len()
+            );
+            continue;
+        }
 
         let query = format!(
             "DELETE FROM tokens WHERE container_id NOT IN ({})",
@@ -370,4 +360,11 @@ pub(crate) async fn collect_garbage(state: TugState) {
             }
         };
     }
+}
+
+pub(super) async fn update(State(state): State<TugState>, Path(container_id): Path<Arc<str>>) {
+    state
+        .connection
+        .prepare("SELECT token_hash FROM containers WHERE container_id = :container_id")
+        .await;
 }
