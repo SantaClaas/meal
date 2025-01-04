@@ -8,10 +8,9 @@ mod secret;
 use std::{collections::HashMap, iter::once, net::Ipv4Addr, sync::Arc};
 
 use crate::auth::cookie;
-use askama_axum::IntoResponse;
 use auth::{cookie::Key, AuthenticatedUser};
 use axum::{
-    extract::State, http::header, middleware::from_extractor_with_state, routing::get, Router,
+    http::header, middleware::from_extractor_with_state, routing::get, Router,
 };
 use base64::{prelude::BASE64_URL_SAFE_NO_PAD, Engine};
 use bollard::Docker;
