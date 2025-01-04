@@ -39,10 +39,6 @@ enum TugError {
     DatabaseError(#[from] database::InitializeError),
 }
 
-async fn update(State(state): State<TugState>) -> impl IntoResponse {
-    container::update_melt(&state.docker, &state.update_lock).await
-}
-
 async fn shutdown_signal() {
     let control_c = async {
         signal::ctrl_c()
@@ -142,7 +138,6 @@ async fn main() -> Result<(), TugError> {
     let _handle = tokio::spawn(collect_garbage(state.clone()));
 
     let app = Router::new()
-        .route("/update", get(update))
         .merge(route::create_router(connection.clone()))
         .route_layer(from_extractor_with_state::<AuthenticatedUser, _>(
             state.clone(),
