@@ -1,14 +1,12 @@
-
 use askama_axum::IntoResponse;
 
 use axum::{
     extract::{Path, Request, State},
     http::{header, StatusCode},
-    middleware::{Next},
+    middleware::Next,
     response::Response,
 };
 use libsql::{de, named_params, Connection};
-
 
 use super::token::{self, BadTokenError, Token};
 
@@ -34,6 +32,7 @@ impl IntoResponse for AuthorizationError {
             Self::NoAuthorizationHeader => StatusCode::BAD_REQUEST.into_response(),
             Self::BadAuthorizationHeader(_) => StatusCode::BAD_REQUEST.into_response(),
             Self::QueryError(libsql::Error::QueryReturnedNoRows) => {
+                // Don't return 404, because that would leak information about the existence of the container
                 StatusCode::UNAUTHORIZED.into_response()
             }
             error => {
@@ -69,6 +68,9 @@ pub(super) async fn require_container_token(
         .map_err(AuthorizationError::QueryError)?;
 
     let hash = de::from_row::<&[u8]>(&row).map_err(AuthorizationError::ReadHashError)?;
+
+    let hash =
+        de::from_row::<token::ContainerHash>(&row).map_err(AuthorizationError::ReadHashError)?;
 
     if !token.is_valid(hash)? {
         return Ok(StatusCode::UNAUTHORIZED.into_response());

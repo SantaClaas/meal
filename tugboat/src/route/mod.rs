@@ -3,7 +3,6 @@ mod middleware;
 pub(crate) mod project;
 mod token;
 
-
 pub(crate) use container::collect_garbage;
 
 use axum::{
@@ -14,7 +13,21 @@ use libsql::Connection;
 
 use crate::TugState;
 
-pub(crate) fn create_router(connection: Connection) -> Router<TugState> {
+pub(super) struct Routes {
+    pub(super) public: Router<TugState>,
+    pub(super) private: Router<TugState>,
+}
+
+pub(super) fn get_for_machines(connection: Connection) -> Router<TugState> {
+    Router::new().route(
+        "/containers/:container_id/update",
+        post(container::update).route_layer(axum::middleware::from_fn_with_state(
+            connection,
+            middleware::require_container_token,
+        )),
+    )
+}
+pub(super) fn get_for_humans() -> Router<TugState> {
     let project_router = Router::new()
         .route("/", get(project::get_index_page))
         .route("/new", get(project::get_new_page).post(project::create))
@@ -24,14 +37,7 @@ pub(crate) fn create_router(connection: Connection) -> Router<TugState> {
 
     let container_router = Router::new()
         .route("/", get(container::get_index).post(container::create))
-        .route("/:container_id/token", post(container::create_token))
-        .route(
-            "/:container_id/update",
-            post(container::update).route_layer(axum::middleware::from_fn_with_state(
-                connection,
-                middleware::require_container_token,
-            )),
-        );
+        .route("/:container_id/token", post(container::create_token));
 
     Router::new()
         .nest("/projects", project_router)

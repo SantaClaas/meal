@@ -3,6 +3,7 @@ use std::sync::Arc;
 use axum::http::HeaderValue;
 use base64::{prelude::BASE64_URL_SAFE_NO_PAD, Engine};
 use hkdf::{self, Hkdf};
+use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
 pub(super) struct Token([u8; Self::LENGTH]);
@@ -21,6 +22,11 @@ pub(super) enum HashError {
 pub(super) enum ValidateError {
     #[error("Error creating hash: {0}")]
     HashError(#[from] HashError),
+}
+
+#[derive(Deserialize)]
+pub(super) struct ContainerHash {
+    token_hash: Arc<[u8]>,
 }
 
 impl Token {
@@ -46,7 +52,10 @@ impl Token {
         Ok(hash)
     }
 
-    pub(super) fn is_valid(&self, hash: impl AsRef<[u8]>) -> Result<bool, ValidateError> {
+    pub(super) fn is_valid(
+        &self,
+        ContainerHash { token_hash: hash }: ContainerHash,
+    ) -> Result<bool, ValidateError> {
         let expected_hash = self.hash()?;
         Ok(expected_hash.as_ref() == hash.as_ref())
     }

@@ -9,9 +9,7 @@ use std::{collections::HashMap, iter::once, net::Ipv4Addr, sync::Arc};
 
 use crate::auth::cookie;
 use auth::{cookie::Key, AuthenticatedUser};
-use axum::{
-    http::header, middleware::from_extractor_with_state, routing::get, Router,
-};
+use axum::{http::header, middleware::from_extractor_with_state, routing::get, Router};
 use base64::{prelude::BASE64_URL_SAFE_NO_PAD, Engine};
 use bollard::Docker;
 use route::collect_garbage;
@@ -137,10 +135,14 @@ async fn main() -> Result<(), TugError> {
     let _handle = tokio::spawn(collect_garbage(state.clone()));
 
     let app = Router::new()
-        .merge(route::create_router(connection.clone()))
+        .merge(route::get_for_humans())
+        // Private routes requiring authorization
         .route_layer(from_extractor_with_state::<AuthenticatedUser, _>(
             state.clone(),
         ))
+        // Routes with custom authorization
+        .merge(route::get_for_machines(connection))
+        // Public routes
         .route("/signin", get(auth::get_sign_in).post(auth::create_sign_in))
         .layer(SetSensitiveRequestHeadersLayer::new(once(
             header::AUTHORIZATION,
