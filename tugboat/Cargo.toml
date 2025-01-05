@@ -18,7 +18,11 @@ thiserror.workspace = true
 time = { version = "0.3.37", features = ["serde"] }
 tokio = { workspace = true, features = ["full"] }
 tokio-stream = "0.1.16"
-tower-http = { workspace = true, features = ["auth", "sensitive-headers"] }
+tower-http = { workspace = true, features = [
+    "auth",
+    "fs",
+    "sensitive-headers",
+] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 uuid = "1.11.0"

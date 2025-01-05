@@ -5,7 +5,7 @@ mod docker;
 mod route;
 mod secret;
 
-use std::{collections::HashMap, iter::once, net::Ipv4Addr, sync::Arc};
+use std::{collections::HashMap, iter::once, net::Ipv4Addr, path::Path, sync::Arc};
 
 use crate::auth::cookie;
 use auth::{cookie::Key, AuthenticatedUser};
@@ -15,7 +15,7 @@ use bollard::Docker;
 use route::collect_garbage;
 use secret::Secrets;
 use tokio::{signal, sync::Mutex};
-use tower_http::sensitive_headers::SetSensitiveRequestHeadersLayer;
+use tower_http::{sensitive_headers::SetSensitiveRequestHeadersLayer, services::ServeDir};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[derive(thiserror::Error, Debug)]
@@ -134,6 +134,18 @@ async fn main() -> Result<(), TugError> {
     // Set up background workers
     let _handle = tokio::spawn(collect_garbage(state.clone()));
 
+    let public_path = if cfg!(debug_assertions) {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("public")
+    } else {
+        std::env::current_exe().unwrap_or_else(|error| {
+                tracing::warn!(
+                    "Could not get current executable path. Will serve static files from relative \"public\" directory. Causing Error: {}",
+                    error
+                );
+                "public".into()
+            })
+    };
+
     let app = Router::new()
         .merge(route::get_for_humans())
         // Private routes requiring authorization
@@ -147,6 +159,7 @@ async fn main() -> Result<(), TugError> {
         .layer(SetSensitiveRequestHeadersLayer::new(once(
             header::AUTHORIZATION,
         )))
+        .fallback_service(ServeDir::new(public_path))
         .with_state(state);
 
     let address = if cfg!(debug_assertions) {

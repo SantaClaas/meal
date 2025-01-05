@@ -1,0 +1,16 @@
+{
+  "name": "tugboat",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "npx @tailwindcss/cli -i app.css -o ./public/app.css"
+  },
+  "keywords": [],
+  "author": "claas <hello@claas.dev>",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@tailwindcss/cli": "4.0.0-beta.8",
+    "tailwindcss": "4.0.0-beta.8"
+  }
+}
