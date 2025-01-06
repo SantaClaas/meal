@@ -1,1 +1,5 @@
 @import "tailwindcss";
+
+:root {
+  @apply bg-slate-950 text-slate-50;
+}

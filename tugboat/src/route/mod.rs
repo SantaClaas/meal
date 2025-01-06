@@ -3,9 +3,12 @@ mod middleware;
 pub(crate) mod project;
 mod token;
 
+use askama_axum::IntoResponse;
 pub(crate) use container::collect_garbage;
 
 use axum::{
+    debug_handler,
+    response::Redirect,
     routing::{get, post},
     Router,
 };
@@ -40,6 +43,6 @@ pub(super) fn get_for_humans() -> Router<TugState> {
         .route("/:container_id/token", post(container::create_token));
 
     Router::new()
-        .nest("/projects", project_router)
+        .route("/", get(|| async { Redirect::to("/containers") }))
         .nest("/containers", container_router)
 }

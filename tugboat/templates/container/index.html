@@ -2,66 +2,86 @@
 
 {% block content %}
 
-<hgroup>
-    <h1>Tugboat</h1>
-    <p>tug tug tug</p>
-</hgroup>
+<header class="px-4 py-2">
+    <hgroup>
+        <h1 class="text-5xl">Tugboat</h1>
+        <p>tug tug tug</p>
+    </hgroup>
+</header>
 
-<h2>Containers</h2>
+<main class="p-4">
 
-<button popovertarget="create" popovertargetaction="show">Create New</button>
-<dialog id="create" popover>
-    <form method="post" action="/containers">
-        <h3>Create New Container</h3>
-        <label for="name">Name</label>
-        <input type="text" id="name" name="name" required pattern="[a-zA-Z0-9][a-zA-Z0-9_.\-]+" autocorrect="off" placeholder="tugboat">
-        <label for="image">Image</label>
-        <input type="text" id="image" name="image" required list="images" autocorrect="off" autocapitalize="off" placeholder="ghcr.io/santaclaas/tugboat:main">
-        <fieldset>
-            <legend>Ports</legend>
-            <label for="container-port">Container Port</label>
-            <input type="number" id="container-port" name="container_port" min="1" max="65535" placeholder="3000">
-            <label for="host-port">Host Port</label>
-            <input type="number" id="host-port" name="host_port" min="1" max="65535" placeholder="80">
-        </fieldset>
+    <h2>Containers</h2>
 
-        <button type="button" popovertarget="create" popovertargetaction="hide">Cancel</button>
-        <button type="submit">Create</button>
-    </form>
-</dialog>
+    <dialog id="create" popover
+        class="p-4 mt-auto mb-0 transition-all duration-500 opacity-0 starting:open:translate-y-full peer transition-discrete open:opacity-100 starting:open:opacity-0 bg-slate-900 rounded-t-3xl">
+        <form method="post" action="/containers">
+            <h3>Create New Container</h3>
+            <label for="name">Name</label>
+            <input type="text" id="name" name="name" required pattern="[a-zA-Z0-9][a-zA-Z0-9_.\-]+" autocorrect="off"
+                placeholder="tugboat">
+            <label for="image">Image</label>
+            <input type="text" id="image" name="image" required list="images" autocorrect="off" autocapitalize="off"
+                placeholder="ghcr.io/santaclaas/tugboat:main">
+            <fieldset>
+                <legend>Ports</legend>
+                <label for="container-port">Container Port</label>
+                <input type="number" id="container-port" name="container_port" min="1" max="65535" placeholder="3000">
+                <label for="host-port">Host Port</label>
+                <input type="number" id="host-port" name="host_port" min="1" max="65535" placeholder="80">
+            </fieldset>
 
-<ul>
-    {% for container in containers %}
-    <li>
-        <button popovertarget="details-{{ container.id }}">{{ container.name }}</button>
-        <dialog id="details-{{ container.id }}" popover>
-            <h3>{{ container.name }}</h3>
-            <dl>
-                <dt>Id</dt>
-                <dd>{{ container.id }}</dd>
-                <dt>Image</dt>
-                <dd>{{ container.image }}</dd>
-            </dl>
+            <footer>
+                <button type="button" popovertarget="create" popovertargetaction="hide">Cancel</button>
+                <button type="submit">Create</button>
+            </footer>
+        </form>
+    </dialog>
 
-            <h4>Deployment</h4>
-            <p>Create a token to authenticate your webhook request to trigger a deployment</p>
+    <button popovertarget="create" popovertargetaction="show"
+        class="absolute p-2 transition-all duration-500 rounded-full bg-amber-500 bottom-4 right-4 peer-open:hidden transition-discrete starting:translate-y-full starting:delay-500 starting:opacity-0 peer-open:opacity-0">
+        <span class="sr-only">Create New</span>
+        <svg height="24px" viewBox="0 -960 960 960" width="24px" fill="currentcolor" class="size-12">
+            <path d="M440-440H200v-80h240v-240h80v240h240v80H520v240h-80v-240Z">
+        </svg>
+    </button>
 
-            <form action="/containers/{{ container.id }}/token" method="post">
-                <button type="submit">Create Token</button>
-            </form>
-        </dialog>
 
-    </li>
-    {% endfor %}
-</ul>
+    <ul>
+        {% for container in containers %}
+        <li>
+            <button popovertarget="details-{{ container.id }}">{{ container.name }}</button>
+            <dialog id="details-{{ container.id }}" popover>
+                <h3>{{ container.name }}</h3>
+                <dl>
+                    <dt>Id</dt>
+                    <dd>{{ container.id }}</dd>
+                    <dt>Image</dt>
+                    <dd>{{ container.image }}</dd>
+                </dl>
 
-{# Stuff that is not as important to be rendered #}
-{% if let Some(images) = image_suggestions %}
-<datalist id="images">
-{% for image in images %}
-    <option value="{{ image }}"></option>
-{% endfor %}
-</datalist>
+                <h4>Deployment</h4>
+                <p>Create a token to authenticate your webhook request to trigger a deployment</p>
+
+                <form action="/containers/{{ container.id }}/token" method="post">
+                    <button type="submit">Create Token</button>
+                </form>
+            </dialog>
+
+        </li>
+        {% endfor %}
+    </ul>
+
+    {# Stuff that is not as important to be rendered #}
+    {% if let Some(images) = image_suggestions %}
+    <datalist id="images">
+        {% for image in images %}
+        <option value="{{ image }}"></option>
+        {% endfor %}
+    </datalist>
+
+</main>
+
 {% endif %}
 
 {% endblock %}
