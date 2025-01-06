@@ -130,6 +130,7 @@ RUN rm ./tugboat/src/*.rs
 COPY ./tugboat/src ./tugboat/src
 COPY ./tugboat/templates ./tugboat/templates
 
+RUN apt-get install -y cmake
 # Build the application
 RUN cargo build --package tugboat --release
 
