@@ -35,6 +35,8 @@ FROM builder AS build-core
 # Install wasm-pack
 #TODO improve this step as it builds from source and is slow but downloading built binary would need hash check and might change
 RUN cargo install wasm-pack
+# Install cmake to build libsql
+RUN apt-get install -y cmake
 
 # Copy over the source code to build the library
 RUN rm core/src/*.rs
@@ -130,7 +132,6 @@ RUN rm ./tugboat/src/*.rs
 COPY ./tugboat/src ./tugboat/src
 COPY ./tugboat/templates ./tugboat/templates
 
-RUN apt-get install -y cmake
 # Build the application
 RUN cargo build --package tugboat --release
 
