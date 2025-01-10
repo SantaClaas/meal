@@ -2,6 +2,7 @@ import materialTailwind from "@claas.dev/material-tailwind";
 import formsPlugin from "@tailwindcss/forms";
 import plugin from "tailwindcss/plugin";
 
+//TODO migrate to Tailwind CSS 4
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ["./src/**/*.{js,jsx}", "./index.html"],
