@@ -1,6 +1,13 @@
-ARG RUST_VERSION=1.81
+ARG RUST_VERSION=1.84
 
 FROM rust:${RUST_VERSION} AS builder
+
+# Install cmake to build libsql
+# Run apt-get in one step for caching https://docs.docker.com/build/building/best-practices/#apt-get
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    cmake \
+    && rm -rf /var/lib/apt/lists/*
+
 # Create a new empty shell project to enable downloading dependencies before building for caching
 RUN USER=root cargo new --bin delivery-service
 RUN USER=root cargo new --name meal-core --lib core
@@ -14,6 +21,7 @@ COPY ./core/Cargo.toml ./core/Cargo.toml
 COPY ./delivery-service/Cargo.toml ./delivery-service/Cargo.toml
 COPY ./pumpe/Cargo.toml ./pumpe/Cargo.toml
 COPY ./tugboat/Cargo.toml ./tugboat/Cargo.toml
+
 
 # Build and cache the dependencies
 RUN cargo build --release
@@ -35,8 +43,6 @@ FROM builder AS build-core
 # Install wasm-pack
 #TODO improve this step as it builds from source and is slow but downloading built binary would need hash check and might change
 RUN cargo install wasm-pack
-# Install cmake to build libsql
-RUN apt-get install -y cmake
 
 # Copy over the source code to build the library
 RUN rm core/src/*.rs
