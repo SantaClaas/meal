@@ -14,32 +14,37 @@
     <h2>Containers</h2>
 
     <dialog id="create" popover
-        class="p-4 mt-auto mb-0 transition-all duration-500 opacity-0 starting:open:translate-y-full peer transition-discrete open:opacity-100 starting:open:opacity-0 bg-slate-900 rounded-t-3xl">
-        <form method="post" action="/containers">
-            <h3>Create New Container</h3>
-            <label for="name">Name</label>
+        class="w-full pt-3 mt-auto mb-0 transition-all duration-500 opacity-0 starting:open:translate-y-full peer transition-discrete open:opacity-100 starting:open:opacity-0 bg-slate-900 rounded-t-3xl">
+        <form id="new-container" method="post" action="/containers" class="px-6">
+            <h3 class="text-lg font-semibold text-slate-100">Create Container</h3>
+            <label for="name" class="block mt-3 font-medium text-slate-100 text-sm/6">Name</label>
             <input type="text" id="name" name="name" required pattern="[a-zA-Z0-9][a-zA-Z0-9_.\-]+" autocorrect="off"
-                placeholder="tugboat">
-            <label for="image">Image</label>
+                placeholder="tugboat"
+                class="block mt-2 w-full rounded-md bg-slate-800 px-3 py-1.5 text-base text-slate-100 outline-1 -outline-offset-1 outline-gray-700 placeholder:text-gray-600 focus:outline-2 focus:-outline-offset-2 focus:outline-amber-600 sm:text-sm/6">
+            <label for="image" class="block mt-3 font-medium text-slate-100 text-sm/6">Image</label>
             <input type="text" id="image" name="image" required list="images" autocorrect="off" autocapitalize="off"
-                placeholder="ghcr.io/santaclaas/tugboat:main">
-            <fieldset>
-                <legend>Ports</legend>
-                <label for="container-port">Container Port</label>
-                <input type="number" id="container-port" name="container_port" min="1" max="65535" placeholder="3000">
-                <label for="host-port">Host Port</label>
-                <input type="number" id="host-port" name="host_port" min="1" max="65535" placeholder="80">
+                placeholder="ghcr.io/santaclaas/tugboat:main"
+                class="block mt-2 w-full rounded-md bg-slate-800 px-3 py-1.5 text-base text-slate-100 outline-1 -outline-offset-1 outline-gray-700 placeholder:text-gray-600 focus:outline-2 focus:-outline-offset-2 focus:outline-amber-600 sm:text-sm/6">
+            <fieldset class="mt-4">
+                <legend class="font-semibold text-slate-100">Ports</legend>
+                <label for="container-port" class="block mt-3 font-medium text-slate-100 text-sm/6">Container
+                    Port</label>
+                <input type="number" id="container-port" name="container_port" min="1" max="65535" placeholder="3000"
+                    class="block mt-2 w-full rounded-md bg-slate-800 px-3 py-1.5 text-base text-slate-100 outline-1 -outline-offset-1 outline-gray-700 placeholder:text-gray-600 focus:outline-2 focus:-outline-offset-2 focus:outline-amber-600 sm:text-sm/6">
+                <label for="host-port" class="block mt-3 font-medium text-slate-100 text-sm/6">Host Port</label>
+                <input type="number" id="host-port" name="host_port" min="1" max="65535" placeholder="80"
+                    class="block mt-2 w-full rounded-md bg-slate-800 px-3 py-1.5 text-base text-slate-100 outline-1 -outline-offset-1 outline-gray-700 placeholder:text-gray-600 focus:outline-2 focus:-outline-offset-2 focus:outline-amber-600 sm:text-sm/6">
             </fieldset>
-
-            <footer>
-                <button type="button" popovertarget="create" popovertargetaction="hide">Cancel</button>
-                <button type="submit">Create</button>
-            </footer>
         </form>
+
+        <footer class="flex justify-end px-3 pt-2 pb-3 text-sm font-medium leading-5 gap-x-2 text-slate-200">
+            <button type="button" popovertarget="create" popovertargetaction="hide" class="p-3">Cancel</button>
+            <button type="submit" form="new-container" class="p-3">Create</button>
+        </footer>
     </dialog>
 
     <button popovertarget="create" popovertargetaction="show"
-        class="absolute p-2 transition-all duration-500 rounded-full bg-amber-500 bottom-4 right-4 peer-open:hidden transition-discrete starting:translate-y-full starting:delay-500 starting:opacity-0 peer-open:opacity-0">
+        class="absolute p-2 transition-all duration-500 rounded-full shadow-xs text-slate-100 hover:bg-amber-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600 bg-amber-600 bottom-4 right-4 peer-open:hidden transition-discrete starting:translate-y-full starting:delay-500 starting:opacity-0 peer-open:opacity-0">
         <span class="sr-only">Create New</span>
         <svg height="24px" viewBox="0 -960 960 960" width="24px" fill="currentcolor" class="size-12">
             <path d="M440-440H200v-80h240v-240h80v240h240v80H520v240h-80v-240Z">
