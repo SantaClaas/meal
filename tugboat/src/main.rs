@@ -89,7 +89,9 @@ async fn main() -> Result<(), TugError> {
     #[cfg(debug_assertions)]
     dotenvy::dotenv().expect("Expected to load .env file in development");
 
-    let secrets = secret::setup().await?;
+    let secrets = secret::setup().await.inspect_err(|error| {
+        tracing::error!("Error setting up secrets {}", error);
+    })?;
 
     let url = std::env::var("LIBSQL_URL").map_err(TugError::DatabaseUrlError)?;
     let key = BASE64_URL_SAFE_NO_PAD
