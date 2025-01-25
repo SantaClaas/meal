@@ -52,7 +52,7 @@ pub(super) struct LoadSecretIdError {
 pub(super) enum Error {
     #[error("Failed to load token from environment variables: {0}")]
     LoadTokenError(#[source] env::VarError),
-    #[error("Error getting secrets from Bitwarden Secrets Manager")]
+    #[error("Error getting secrets from Bitwarden Secrets Manager: {0}")]
     BwsError(#[from] bitwarden::Error),
     #[error("Error authenticating with Bitwarden")]
     BwsAuthenticationFailed,
