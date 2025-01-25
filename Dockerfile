@@ -148,6 +148,10 @@ RUN cargo build --package tugboat --release
 # Final base image
 FROM debian:bookworm-slim AS final-tugboat
 
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy the build artifacts from the build stage
 COPY --from=build-tugboat /target/release/tugboat .
 
