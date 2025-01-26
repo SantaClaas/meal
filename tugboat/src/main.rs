@@ -161,7 +161,13 @@ async fn main() -> Result<(), TugError> {
         .layer(SetSensitiveRequestHeadersLayer::new(once(
             header::AUTHORIZATION,
         )))
-        .fallback_service(ServeDir::new(public_path))
+        .fallback_service(
+            ServeDir::new(public_path)
+                .precompressed_br()
+                .precompressed_deflate()
+                .precompressed_gzip()
+                .precompressed_zstd(),
+        )
         .with_state(state);
 
     let address = if cfg!(debug_assertions) {
