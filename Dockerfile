@@ -159,7 +159,6 @@ COPY ./tugboat ./tugboat
 
 # Build and cache
 RUN cd tugboat \
-    && ls \
     && pnpx @tailwindcss/cli --input ./app.css --output ./public/app.css --minify \
     && cd ..
 
@@ -174,7 +173,6 @@ RUN rm ./tugboat/src/*.rs
 COPY ./tugboat/src ./tugboat/src
 COPY ./tugboat/templates ./tugboat/templates
 
-COPY --from=build-tugboat-styles /tugboat-styles/tugboat/public ./public
 
 # Build the application
 RUN cargo build --package tugboat --release
@@ -194,6 +192,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the build artifacts from the build stage
+COPY --from=build-tugboat-styles /tugboat-styles/tugboat/public ./public
 COPY --from=build-tugboat /target/release/tugboat .
 
 EXPOSE 3001
