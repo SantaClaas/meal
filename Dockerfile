@@ -102,6 +102,7 @@ RUN ./pumpe ./app/dist
 
 
 
+
 # Build the delivery service containing the API and hosting the app
 FROM builder AS build-delivery-service
 
@@ -131,12 +132,49 @@ CMD ["./delivery-service"]
 
 
 
+# Build tugboat styles
+FROM node:lts AS build-tugboat-styles
+WORKDIR /tugboat-styles
+
+# Copy tool to compress files
+COPY --from=build-pumpe /target/release/pumpe ./pumpe
+
+# Installs pnpm as it is set as package manager in package.json
+RUN corepack enable
+
+# Copy over manifests
+# Workspace root
+COPY ./package.json ./package.json
+COPY ./pnpm-workspace.yaml ./pnpm-workspace.yaml
+COPY ./pnpm-lock.yaml ./pnpm-lock.yaml
+
+# App specific
+COPY ./tugboat/package.json ./tugboat/package.json
+
+# Install dependencies
+RUN pnpm install
+
+# Copy over the source to build the styles
+COPY ./tugboat ./tugboat
+
+# Build and cache
+RUN cd tugboat \
+    && ls \
+    && pnpx @tailwindcss/cli --input ./app.css --output ./public/app.css --minify \
+    && cd ..
+
+# Compress files
+RUN ./pumpe ./tugboat/public
+
+
 FROM builder AS build-tugboat
 
 # Copy over the source code to build the application
 RUN rm ./tugboat/src/*.rs
 COPY ./tugboat/src ./tugboat/src
 COPY ./tugboat/templates ./tugboat/templates
+
+COPY --from=build-tugboat-styles /tugboat-styles/tugboat/public ./public
 
 # Build the application
 RUN cargo build --package tugboat --release
