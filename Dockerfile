@@ -149,7 +149,10 @@ RUN cargo build --package tugboat --release
 FROM debian:bookworm-slim AS final-tugboat
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    # OpenSSL dependency for reqwest used by bitwarden
     libssl-dev \
+    # Certificates needed to make HTTPS requests
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the build artifacts from the build stage
