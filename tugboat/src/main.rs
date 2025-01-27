@@ -148,6 +148,8 @@ async fn main() -> Result<(), TugError> {
             })
     };
 
+    tracing::debug!("Serving files from: {}", public_path.display());
+
     let app = Router::new()
         .merge(route::get_for_humans())
         // Private routes requiring authorization
