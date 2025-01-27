@@ -139,13 +139,18 @@ async fn main() -> Result<(), TugError> {
     let public_path = if cfg!(debug_assertions) {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("public")
     } else {
-        std::env::current_exe().unwrap_or_else(|error| {
+        let mut path = std::env::current_exe().unwrap_or_else(|error| {
                 tracing::warn!(
                     "Could not get current executable path. Will serve static files from relative \"public\" directory. Causing Error: {}",
                     error
                 );
                 "public".into()
-            })
+            });
+
+        // We want the directory containing the executable not the executable itself
+        _ = path.pop();
+
+        path
     };
 
     tracing::debug!("Serving files from: {}", public_path.display());
