@@ -150,7 +150,7 @@ async fn main() -> Result<(), TugError> {
         // We want the directory containing the executable not the executable itself
         _ = path.pop();
 
-        path
+        path.join("public")
     };
 
     tracing::debug!("Serving files from: {}", public_path.display());
