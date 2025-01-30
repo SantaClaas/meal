@@ -550,12 +550,18 @@ pub(super) async fn update(
         ..Default::default()
     };
 
+    // Run with same environment variables
+    let environment_variables = container
+        .and_then(|container| container.config.and_then(|configuration| configuration.env));
+
     let configuration = container::Config {
         image: Some(image_name),
         // exposed_ports: Some(HashMap::from([("3000", HashMap::default())])),
         host_config: Some(host_configuration),
+        env: environment_variables,
         ..Default::default()
     };
+
     tracing::debug!("Creating container",);
 
     let response = state
