@@ -66,10 +66,9 @@ struct TugState {
     docker: Docker,
     secrets: Secrets,
     cookie_key: cookie::Key,
-    // Is there a better primitive to have one task exlusively running the update
+    // Is there a better primitive to have one task exclusively running the update
     /// Lock to avoid multiple updates at the same time
     /// Does not lock the docker instance as other tasks are still permitted
-    update_lock: Arc<Mutex<()>>,
     connection: libsql::Connection,
     update_locks: Arc<Mutex<HashMap<Arc<str>, Arc<Mutex<()>>>>>,
 }
@@ -113,12 +112,10 @@ async fn main() -> Result<(), TugError> {
 
     tracing::info!("Setting up docker");
     let docker = docker::set_up()?;
-    let update_lock: Arc<Mutex<()>> = Arc::default();
     let state = TugState {
         secrets,
         cookie_key,
         docker: docker.clone(),
-        update_lock: update_lock.clone(),
         connection: connection.clone(),
         update_locks: Arc::default(),
     };
