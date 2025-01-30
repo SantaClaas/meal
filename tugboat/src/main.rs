@@ -1,5 +1,4 @@
 mod auth;
-mod container;
 mod database;
 mod docker;
 mod route;
