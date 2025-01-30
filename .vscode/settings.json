@@ -1,3 +1,10 @@
 {
-  "cSpell.words": ["popovertarget", "popovertargetaction", "santaclaas"]
+  "cSpell.words": [
+    "dotenvy",
+    "libsql",
+    "popovertarget",
+    "popovertargetaction",
+    "santaclaas",
+    "thiserror"
+  ]
 }

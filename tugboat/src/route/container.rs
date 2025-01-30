@@ -16,6 +16,7 @@ use bollard::{
     secret::{HostConfig, PortBinding},
     Docker,
 };
+use environment::try_load_from_file;
 use libsql::named_params;
 use serde::Deserialize;
 use sha2::Digest;
@@ -137,6 +138,7 @@ pub(super) struct CreateRequest {
     image: Arc<str>,
     container_port: Option<Port>,
     host_port: Option<Port>,
+    environment_file: Option<Arc<str>>,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -163,6 +165,27 @@ mod label {
     pub(super) const TAG: &str = "moe.cla.tugboat.tugged";
 }
 
+mod environment {
+
+    pub(super) fn try_load_from_file(path: impl AsRef<str>) -> Option<Vec<String>> {
+        let variables = dotenvy::from_path_iter(path.as_ref())
+            .inspect_err(|error| {
+                tracing::error!("Error loading environment variables from file: {error}")
+            })
+            .ok()?
+            .filter_map(|item| match item {
+                Ok((key, value)) => Some(format!("{key}={value}")),
+                Err(error) => {
+                    tracing::error!("Error loading environment variable: {error}");
+                    None
+                }
+            })
+            .collect();
+
+        Some(variables)
+    }
+}
+
 pub(super) async fn create(
     State(state): State<TugState>,
     Form(request): Form<CreateRequest>,
@@ -170,7 +193,7 @@ pub(super) async fn create(
     // Pull latest image
     tracing::debug!("Pulling image");
     let options = Some(CreateImageOptions {
-        // Allways include the tag in the name
+        // Always include the tag in the name
         from_image: request.image.as_ref(),
         platform: "linux/amd64",
         ..Default::default()
@@ -206,11 +229,15 @@ pub(super) async fn create(
         None
     };
 
-    let configuration = container::Config {
-        image: Some(request.image.as_ref()),
+    // Load environment variables from file
+    let variables = request.environment_file.and_then(try_load_from_file);
+
+    let configuration = container::Config::<String> {
+        image: Some(String::from(request.image.as_ref())),
         // exposed_ports: Some(HashMap::from([("3000", HashMap::default())])),
         host_config: host_configuration,
-        labels: Some(HashMap::from([(label::TAG, "")])),
+        labels: Some(HashMap::from([(label::TAG.to_owned(), String::default())])),
+        env: variables,
         ..Default::default()
     };
 
@@ -385,8 +412,6 @@ pub(super) enum UpdateError {
     DockerError(#[from] bollard::errors::Error),
     #[error("Expected newly created image to have an id")]
     NoImageId,
-    #[error("Expected container to have an id or name")]
-    NoContainerId,
     #[error("Container was configured without image")]
     NoImage,
     #[error("Container has no name")]
@@ -400,7 +425,7 @@ impl IntoResponse for UpdateError {
 }
 
 /// This handler expects that the request has been authorized and the authorization is valid.
-/// Authorization is not part of this handlers responsiblities.
+/// Authorization is not part of this handlers responsibilities.
 /// This means the container exists at least in our database.
 pub(super) async fn update(
     State(state): State<TugState>,
@@ -428,7 +453,7 @@ pub(super) async fn update(
     // 404 Not found is okay
     /// This constant can be inlined in future Rust versions
     const NOT_FOUND: u16 = http::StatusCode::NOT_FOUND.as_u16();
-    let container = result.map(Option::Some).or_else(|orrer| match orrer {
+    let container = result.map(Option::Some).or_else(|error| match error {
         bollard::errors::Error::DockerResponseServerError {
             status_code: NOT_FOUND,
             message: _,
@@ -462,7 +487,7 @@ pub(super) async fn update(
 
     // Pull latest image
     let options = Some(CreateImageOptions {
-        // Allways include the tag in the name
+        // Always include the tag in the name
         from_image: image_name.clone(),
         platform: "linux/amd64".to_string(),
         ..Default::default()
