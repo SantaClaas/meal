@@ -262,7 +262,7 @@ pub(in crate::route) mod environment {
 
 pub(super) async fn create(
     State(state): State<TugState>,
-    Form(request): Form<CreateRequest>,
+    axum_extra::extract::Form(request): axum_extra::extract::Form<CreateRequest>,
 ) -> Result<Redirect, CreateError> {
     // Pull latest image
     tracing::debug!("Pulling image");
