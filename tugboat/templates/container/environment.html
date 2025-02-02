@@ -1,0 +1,23 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+{% if let Some(variables) = variables %}
+{% if variables.is_empty() %}
+<p>No environment variables</p>
+{% else %}
+<dl>
+    {% for (key, value) in variables %}
+    <dt>{{ key }}</dt>
+    <dd>{{ value }}</dd>
+    {% endfor %}
+</dl>
+{% endif %}
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+{% endblock %}
+
+{% call super() %}

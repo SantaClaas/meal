@@ -165,7 +165,81 @@ mod label {
     pub(super) const TAG: &str = "moe.cla.tugboat.tugged";
 }
 
-mod environment {
+pub(in crate::route) mod environment {
+    use std::sync::Arc;
+
+    use askama::Template;
+    use axum::{
+        extract::{Path, State},
+        http::StatusCode,
+        response::{IntoResponse, Response},
+    };
+
+    use crate::TugState;
+
+    #[derive(Template)]
+    #[template(path = "container/environment.html")]
+    pub(in crate::route) struct VariablesTemplate {
+        variables: Option<Vec<(Arc<str>, Arc<str>)>>,
+    }
+
+    #[derive(thiserror::Error, Debug)]
+    pub(in crate::route) enum GetVariablesError {
+        #[error("Error loading container: {0}")]
+        LoadContainerError(bollard::errors::Error),
+        #[error("Could not parse environment variable: {0}")]
+        ParseError(String),
+    }
+
+    impl IntoResponse for GetVariablesError {
+        fn into_response(self) -> Response {
+            match self {
+                Self::LoadContainerError(bollard::errors::Error::DockerResponseServerError {
+                    status_code: 404,
+                    message: _,
+                }) => StatusCode::NOT_FOUND.into_response(),
+                Self::LoadContainerError(error) => {
+                    tracing::error!("Error loading container: {error}");
+                    StatusCode::INTERNAL_SERVER_ERROR.into_response()
+                }
+                other => {
+                    tracing::error!("Error getting variables: {other}");
+                    StatusCode::INTERNAL_SERVER_ERROR.into_response()
+                }
+            }
+        }
+    }
+
+    pub(in crate::route) async fn get_variables(
+        State(state): State<TugState>,
+        Path(container_id): Path<Arc<str>>,
+    ) -> Result<VariablesTemplate, GetVariablesError> {
+        let container = state
+            .docker
+            .inspect_container(container_id.as_ref(), None)
+            .await
+            .map_err(GetVariablesError::LoadContainerError)?;
+
+        let variables = container
+            .config
+            .and_then(|configuration| configuration.env)
+            .map(|variables| {
+                variables
+                    .into_iter()
+                    .map(
+                        |variable| -> Result<(Arc<str>, Arc<str>), GetVariablesError> {
+                            variable
+                                .split_once('=')
+                                .map(|(key, value)| (Arc::from(key), Arc::from(value)))
+                                .ok_or_else(|| GetVariablesError::ParseError(variable))
+                        },
+                    )
+                    .collect::<Result<Vec<_>, GetVariablesError>>()
+            })
+            .transpose()?;
+
+        Ok(VariablesTemplate { variables })
+    }
 
     pub(super) fn try_load_from_file(path: impl AsRef<str>) -> Option<Vec<String>> {
         let variables = dotenvy::from_path_iter(path.as_ref())

@@ -48,7 +48,11 @@ pub(super) fn get_for_machines(connection: Connection) -> Router<TugState> {
 pub(super) fn get_for_humans() -> Router<TugState> {
     let container_router = Router::new()
         .route("/", get(container::get_index).post(container::create))
-        .route("/:container_id/token", post(container::create_token));
+        .route("/:container_id/token", post(container::create_token))
+        .route(
+            "/:container_id/environment/variables",
+            get(container::environment::get_variables),
+        );
 
     Router::new()
         .route("/", get(|| async { Redirect::to("/containers") }))
