@@ -1,6 +1,7 @@
 mod auth;
 mod database;
 mod docker;
+mod r#macro;
 mod route;
 mod secret;
 
@@ -11,7 +12,7 @@ use auth::{cookie::Key, AuthenticatedUser};
 use axum::{http::header, middleware::from_extractor_with_state, routing::get, Router};
 use base64::{prelude::BASE64_URL_SAFE_NO_PAD, Engine};
 use bollard::Docker;
-use route::collect_garbage;
+use route::{collect_garbage, container::draft};
 use secret::Secrets;
 use tokio::{signal, sync::Mutex};
 use tower_http::{sensitive_headers::SetSensitiveRequestHeadersLayer, services::ServeDir};
@@ -71,6 +72,7 @@ struct TugState {
     /// Does not lock the docker instance as other tasks are still permitted
     connection: libsql::Connection,
     update_locks: Arc<Mutex<HashMap<Arc<str>, Arc<Mutex<()>>>>>,
+    container_drafts: draft::State,
 }
 
 #[tokio::main]
@@ -118,6 +120,7 @@ async fn main() -> Result<(), TugError> {
         docker: docker.clone(),
         connection: connection.clone(),
         update_locks: Arc::default(),
+        container_drafts: Default::default(),
     };
 
     tokio::spawn(async move {

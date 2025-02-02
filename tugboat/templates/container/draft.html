@@ -1,0 +1,38 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<form id="new-container" method="post" action="/containers" class="px-6">
+    <h3 class="text-lg font-semibold text-slate-100">Create Container</h3>
+    <label for="name" class="block mt-3 font-medium text-slate-100 text-sm/6">Name</label>
+    <input type="text" id="name" name="name" required pattern="[a-zA-Z0-9][a-zA-Z0-9_.\-]+" autocorrect="off"
+        placeholder="tugboat"
+        class="block mt-2 w-full rounded-md bg-slate-800 px-3 py-1.5 text-base text-slate-100 outline-1 -outline-offset-1 outline-gray-700 placeholder:text-gray-600 focus:outline-2 focus:-outline-offset-2 focus:outline-amber-600 sm:text-sm/6">
+    <label for="image" class="block mt-3 font-medium text-slate-100 text-sm/6">Image</label>
+    <input type="text" id="image" name="image" required list="images" autocorrect="off" autocapitalize="off"
+        placeholder="ghcr.io/santaclaas/tugboat:main"
+        class="block mt-2 w-full rounded-md bg-slate-800 px-3 py-1.5 text-base text-slate-100 outline-1 -outline-offset-1 outline-gray-700 placeholder:text-gray-600 focus:outline-2 focus:-outline-offset-2 focus:outline-amber-600 sm:text-sm/6">
+    <label for="environment-file" class="block mt-3 font-medium text-slate-100 text-sm/6">Environment Variables
+        File</label>
+    <input type="text" id="environment-file" name="environment_file" placeholder="/var/some/file.env" autocorrect="off"
+        autocapitalize="off"
+        class="block mt-2 w-full rounded-md bg-slate-800 px-3 py-1.5 text-base text-slate-100 outline-1 -outline-offset-1 outline-gray-700 placeholder:text-gray-600 focus:outline-2 focus:-outline-offset-2 focus:outline-amber-600 sm:text-sm/6">
+    <fieldset class="mt-4">
+        <legend class="font-semibold text-slate-100">Ports</legend>
+        <label for="container-port" class="block mt-3 font-medium text-slate-100 text-sm/6">Container
+            Port</label>
+        <input type="number" id="container-port" name="container_port" min="1" max="65535" placeholder="3000"
+            class="block mt-2 w-full rounded-md bg-slate-800 px-3 py-1.5 text-base text-slate-100 outline-1 -outline-offset-1 outline-gray-700 placeholder:text-gray-600 focus:outline-2 focus:-outline-offset-2 focus:outline-amber-600 sm:text-sm/6">
+        <label for="host-port" class="block mt-3 font-medium text-slate-100 text-sm/6">Host Port</label>
+        <input type="number" id="host-port" name="host_port" min="1" max="65535" placeholder="80"
+            class="block mt-2 w-full rounded-md bg-slate-800 px-3 py-1.5 text-base text-slate-100 outline-1 -outline-offset-1 outline-gray-700 placeholder:text-gray-600 focus:outline-2 focus:-outline-offset-2 focus:outline-amber-600 sm:text-sm/6">
+    </fieldset>
+
+</form>
+
+{% endblock %}
+
+{% block scripts %}
+{% endblock %}
+
+{% call super() %}
