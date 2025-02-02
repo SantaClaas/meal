@@ -25,11 +25,6 @@
             <input type="text" id="image" name="image" required list="images" autocorrect="off" autocapitalize="off"
                 placeholder="ghcr.io/santaclaas/tugboat:main"
                 class="block mt-2 w-full rounded-md bg-slate-800 px-3 py-1.5 text-base text-slate-100 outline-1 -outline-offset-1 outline-gray-700 placeholder:text-gray-600 focus:outline-2 focus:-outline-offset-2 focus:outline-amber-600 sm:text-sm/6">
-            <label for="environment-file" class="block mt-3 font-medium text-slate-100 text-sm/6">Environment Variables
-                File</label>
-            <input type="text" id="environment-file" name="environment_file" placeholder="/var/some/file.env"
-                autocorrect="off" autocapitalize="off"
-                class="block mt-2 w-full rounded-md bg-slate-800 px-3 py-1.5 text-base text-slate-100 outline-1 -outline-offset-1 outline-gray-700 placeholder:text-gray-600 focus:outline-2 focus:-outline-offset-2 focus:outline-amber-600 sm:text-sm/6">
             <fieldset class="mt-4">
                 <legend class="font-semibold text-slate-100">Ports</legend>
                 <label for="container-port" class="block mt-3 font-medium text-slate-100 text-sm/6">Container
@@ -61,7 +56,12 @@
     <ul>
         {% for container in containers %}
         <li>
-            <button popovertarget="details-{{ container.id }}">{{ container.name }}</button>
+            <button popovertarget="details-{{ container.id }}">
+                {{ container.name }}
+                {% if let Some(state) = container.state %}
+                ({{ state }})
+                {% endif %}
+            </button>
             <dialog id="details-{{ container.id }}" popover>
                 <h3>{{ container.name }}</h3>
                 <dl>

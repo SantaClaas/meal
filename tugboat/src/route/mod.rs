@@ -18,11 +18,6 @@ use tower::{buffer::BufferLayer, limit::RateLimitLayer, ServiceBuilder};
 
 use crate::TugState;
 
-pub(super) struct Routes {
-    pub(super) public: Router<TugState>,
-    pub(super) private: Router<TugState>,
-}
-
 pub(super) fn get_for_machines(connection: Connection) -> Router<TugState> {
     Router::new().route(
         "/containers/:container_id/update",

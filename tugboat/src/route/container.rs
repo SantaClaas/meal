@@ -307,14 +307,12 @@ pub(super) async fn create(
     };
 
     // Load environment variables from file
-    let variables = request.environment_file.and_then(try_load_from_file);
 
     let configuration = container::Config::<String> {
         image: Some(String::from(request.image.as_ref())),
         // exposed_ports: Some(HashMap::from([("3000", HashMap::default())])),
         host_config: host_configuration,
         labels: Some(HashMap::from([(label::TAG.to_owned(), String::default())])),
-        env: variables,
         ..Default::default()
     };
 
