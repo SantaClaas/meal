@@ -1,4 +1,4 @@
-pub(crate) mod container;
+mod container;
 mod middleware;
 mod token;
 
@@ -45,22 +45,10 @@ pub(super) fn get_for_machines(connection: Connection) -> Router<TugState> {
             ),
     )
 }
-
 pub(super) fn get_for_humans() -> Router<TugState> {
-    let draft_router = Router::new()
-        .route("/", post(container::draft::create))
-        .route(
-            "/:id/",
-            get(container::draft::get).post(container::draft::update),
-        );
-
     let container_router = Router::new()
-        .route(
-            "/",
-            get(container::get_index).post(container::draft::create_container),
-        )
-        .route("/:container_id/token", post(container::create_token))
-        .nest("/drafts", draft_router);
+        .route("/", get(container::get_index).post(container::create))
+        .route("/:container_id/token", post(container::create_token));
 
     Router::new()
         .route("/", get(|| async { Redirect::to("/containers") }))
