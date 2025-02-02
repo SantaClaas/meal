@@ -30,6 +30,7 @@ struct Container {
     id: Arc<str>,
     name: Arc<str>,
     image: Arc<str>,
+    state: Option<String>,
 }
 
 #[derive(Template)]
@@ -84,6 +85,7 @@ pub(super) enum GetContainersError {
 async fn get_containers(docker: &Docker) -> Result<Vec<Container>, GetContainersError> {
     docker
         .list_containers(Some(ListContainersOptions {
+            all: true,
             filters: HashMap::from([("label", vec![label::TAG])]),
             ..Default::default()
         }))
@@ -106,6 +108,7 @@ async fn get_containers(docker: &Docker) -> Result<Vec<Container>, GetContainers
                 id: id.as_str().into(),
                 name: name.into(),
                 image: image.into(),
+                state: container.state,
             })
         })
         .collect()
