@@ -343,8 +343,10 @@ pub(in crate::route) mod environment {
             .and_then(|configuration| configuration.image.clone());
 
         let host_configuration = container.host_config;
-        let mut environment_variables =
-            container.config.and_then(|configuration| configuration.env);
+        let mut environment_variables = container
+            .config
+            .as_ref()
+            .and_then(|configuration| configuration.env.clone());
 
         // Merge with variables from request
         if let Some(variables) = environment_variables.as_mut() {
@@ -360,6 +362,11 @@ pub(in crate::route) mod environment {
             }
         }
 
+        let labels = container
+            .config
+            .as_ref()
+            .and_then(|configuration| configuration.labels.clone());
+
         // Create container
         let options = Some(CreateContainerOptions {
             name: container_name.as_ref(),
@@ -370,6 +377,7 @@ pub(in crate::route) mod environment {
             image: image_name,
             host_config: host_configuration,
             env: environment_variables,
+            labels,
             ..Default::default()
         };
 
@@ -758,14 +766,24 @@ pub(super) async fn update(
         .and_then(|container| container.host_config.clone());
 
     // Run with same environment variables
-    let environment_variables = container
-        .and_then(|container| container.config.and_then(|configuration| configuration.env));
+    let environment_variables = container.as_ref().and_then(|container| {
+        container
+            .config
+            .as_ref()
+            .and_then(|configuration| configuration.env.clone())
+    });
 
+    let labels = container.and_then(|container| {
+        container
+            .config
+            .and_then(|configuration| configuration.labels)
+    });
     let configuration = container::Config {
         image: image_name,
         // exposed_ports: Some(HashMap::from([("3000", HashMap::default())])),
         host_config: host_configuration,
         env: environment_variables,
+        labels,
         ..Default::default()
     };
 
