@@ -46,7 +46,7 @@ pub(super) fn get_for_humans() -> Router<TugState> {
         .route("/:container_id/token", post(container::create_token))
         .route(
             "/:container_id/environment/variables",
-            get(container::environment::get_variables),
+            get(container::environment::get_variables).post(container::environment::update),
         );
 
     Router::new()
