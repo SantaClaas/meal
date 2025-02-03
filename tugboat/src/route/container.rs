@@ -5,7 +5,6 @@ use axum::{
     extract::{Path, State},
     http::{self, StatusCode},
     response::{IntoResponse, Redirect, Response},
-    Form,
 };
 use bollard::{
     container::{
@@ -13,10 +12,9 @@ use bollard::{
         RemoveContainerOptions, StartContainerOptions, StopContainerOptions,
     },
     image::CreateImageOptions,
-    secret::{HostConfig, PortBinding},
+    secret::{ContainerInspectResponse, HostConfig, PortBinding},
     Docker,
 };
-use environment::try_load_from_file;
 use libsql::named_params;
 use serde::Deserialize;
 use sha2::Digest;
@@ -168,6 +166,31 @@ mod label {
     pub(super) const TAG: &str = "moe.cla.tugboat.tugged";
 }
 
+#[derive(thiserror::Error, Debug)]
+#[error("Error getting container by id: {0}")]
+struct GetContainerError(#[from] bollard::errors::Error);
+impl GetContainerError {
+    fn is_not_found(&self) -> bool {
+        matches!(
+            self,
+            Self(bollard::errors::Error::DockerResponseServerError {
+                status_code: 404,
+                message: _,
+            })
+        )
+    }
+}
+
+async fn get_container(
+    docker: &Docker,
+    container_id: impl AsRef<str>,
+) -> Result<ContainerInspectResponse, GetContainerError> {
+    docker
+        .inspect_container(container_id.as_ref(), None)
+        .await
+        .map_err(GetContainerError)
+}
+
 pub(in crate::route) mod environment {
     use std::sync::Arc;
 
@@ -175,21 +198,30 @@ pub(in crate::route) mod environment {
     use axum::{
         extract::{Path, State},
         http::StatusCode,
-        response::{IntoResponse, Response},
+        response::{IntoResponse, Redirect, Response},
+        Form,
     };
+    use bollard::container::{
+        self, CreateContainerOptions, RemoveContainerOptions, StartContainerOptions,
+        StopContainerOptions,
+    };
+    use serde::Deserialize;
 
-    use crate::TugState;
+    use crate::{redirect_to, TugState};
+
+    use super::{get_container, GetContainerError};
 
     #[derive(Template)]
     #[template(path = "container/environment.html")]
     pub(in crate::route) struct VariablesTemplate {
+        container_id: Arc<str>,
         variables: Option<Vec<(Arc<str>, Arc<str>)>>,
     }
 
     #[derive(thiserror::Error, Debug)]
     pub(in crate::route) enum GetVariablesError {
         #[error("Error loading container: {0}")]
-        LoadContainerError(bollard::errors::Error),
+        LoadContainerError(#[from] GetContainerError),
         #[error("Could not parse environment variable: {0}")]
         ParseError(String),
     }
@@ -197,10 +229,9 @@ pub(in crate::route) mod environment {
     impl IntoResponse for GetVariablesError {
         fn into_response(self) -> Response {
             match self {
-                Self::LoadContainerError(bollard::errors::Error::DockerResponseServerError {
-                    status_code: 404,
-                    message: _,
-                }) => StatusCode::NOT_FOUND.into_response(),
+                Self::LoadContainerError(error) if error.is_not_found() => {
+                    StatusCode::NOT_FOUND.into_response()
+                }
                 Self::LoadContainerError(error) => {
                     tracing::error!("Error loading container: {error}");
                     StatusCode::INTERNAL_SERVER_ERROR.into_response()
@@ -217,11 +248,7 @@ pub(in crate::route) mod environment {
         State(state): State<TugState>,
         Path(container_id): Path<Arc<str>>,
     ) -> Result<VariablesTemplate, GetVariablesError> {
-        let container = state
-            .docker
-            .inspect_container(container_id.as_ref(), None)
-            .await
-            .map_err(GetVariablesError::LoadContainerError)?;
+        let container = get_container(&state.docker, &container_id).await?;
 
         let variables = container
             .config
@@ -241,7 +268,127 @@ pub(in crate::route) mod environment {
             })
             .transpose()?;
 
-        Ok(VariablesTemplate { variables })
+        Ok(VariablesTemplate {
+            variables,
+            container_id,
+        })
+    }
+
+    #[derive(Deserialize)]
+    pub(in crate::route) struct UpdateRequest {
+        key: Arc<str>,
+        value: Arc<str>,
+    }
+
+    #[derive(thiserror::Error, Debug)]
+    pub(in crate::route) enum UpdateError {
+        #[error("Error loading container: {0}")]
+        LoadContainerError(#[from] GetContainerError),
+        #[error("Error updating environment variable: {0}")]
+        UpdateError(#[from] bollard::errors::Error),
+        #[error("Container was configured without name")]
+        NoContainerName,
+    }
+
+    impl IntoResponse for UpdateError {
+        fn into_response(self) -> Response {
+            match self {
+                Self::LoadContainerError(error) if error.is_not_found() => {
+                    StatusCode::NOT_FOUND.into_response()
+                }
+                Self::LoadContainerError(error) => {
+                    tracing::error!("Error loading container: {error}");
+                    StatusCode::INTERNAL_SERVER_ERROR.into_response()
+                }
+                Self::UpdateError(error) => {
+                    tracing::error!("Error updating environment variable: {error}");
+                    StatusCode::INTERNAL_SERVER_ERROR.into_response()
+                }
+                UpdateError::NoContainerName => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+            }
+        }
+    }
+
+    pub(in crate::route) async fn update(
+        State(state): State<TugState>,
+        Path(container_id): Path<Arc<str>>,
+        Form(request): Form<UpdateRequest>,
+    ) -> Result<Redirect, UpdateError> {
+        let container = get_container(&state.docker, &container_id).await?;
+
+        let mut locks = state.update_locks.lock().await;
+        let update_lock = locks.entry(container_id.clone()).or_default();
+
+        // Don't interfere with running updates. Could make things awkward
+        //TODO restrict queue size
+        let _lock = update_lock.lock().await;
+
+        // Stop container
+        state
+            .docker
+            .stop_container(&container_id, None::<StopContainerOptions>)
+            .await?;
+
+        state
+            .docker
+            .remove_container(&container_id, None::<RemoveContainerOptions>)
+            .await?;
+
+        // Extract container creation parameters
+
+        let container_name = container.name.ok_or(UpdateError::NoContainerName)?;
+        let image_name = container
+            .config
+            .as_ref()
+            .and_then(|configuration| configuration.image.clone());
+
+        let host_configuration = container.host_config;
+        let mut environment_variables =
+            container.config.and_then(|configuration| configuration.env);
+
+        // Merge with variables from request
+        if let Some(variables) = environment_variables.as_mut() {
+            let index = variables
+                .iter()
+                .position(|variable| variable.starts_with(request.key.as_ref()));
+
+            let new_variable = format!("{}={}", request.key, request.value);
+            if let Some(index) = index {
+                variables[index] = new_variable;
+            } else {
+                variables.push(new_variable);
+            }
+        }
+
+        // Create container
+        let options = Some(CreateContainerOptions {
+            name: container_name.as_ref(),
+            platform: Some("linux/amd64"),
+        });
+
+        let configuration = container::Config {
+            image: image_name,
+            host_config: host_configuration,
+            env: environment_variables,
+            ..Default::default()
+        };
+
+        tracing::debug!("Creating container",);
+
+        let response = state
+            .docker
+            .create_container(options, configuration)
+            .await?;
+
+        tracing::debug!("Starting container");
+        state
+            .docker
+            .start_container(&response.id, None::<StartContainerOptions<String>>)
+            .await?;
+
+        Ok(redirect_to!(
+            "/containers/{container_id}/environment/variables"
+        ))
     }
 
     pub(super) fn try_load_from_file(path: impl AsRef<str>) -> Option<Vec<String>> {
@@ -337,7 +484,7 @@ pub(super) async fn create(
 #[derive(thiserror::Error, Debug)]
 pub(super) enum CreateTokenError {
     #[error("Error loading container: {0}")]
-    LoadContainerError(bollard::errors::Error),
+    LoadContainerError(#[from] GetContainerError),
     #[error("Error creating token: {0}")]
     CreateTokenError(#[from] token::CreateError),
     #[error("Error hashing token: {0}")]
@@ -350,11 +497,7 @@ pub(super) enum CreateTokenError {
 
 impl IntoResponse for CreateTokenError {
     fn into_response(self) -> axum::response::Response {
-        if let Self::LoadContainerError(bollard::errors::Error::DockerResponseServerError {
-            status_code: 404,
-            message: _,
-        }) = self
-        {
+        if matches!(self, Self::LoadContainerError(error) if error.is_not_found()) {
             return StatusCode::NOT_FOUND.into_response();
         }
 
@@ -372,11 +515,8 @@ pub(super) async fn create_token(
     State(state): State<TugState>,
     Path(container_id): Path<Arc<str>>,
 ) -> Result<CreateTokenResultTemplate, CreateTokenError> {
-    let _container = state
-        .docker
-        .inspect_container(container_id.as_ref(), None)
-        .await
-        .map_err(CreateTokenError::LoadContainerError)?;
+    // Check if container exists
+    let _container = get_container(&state.docker, &container_id).await?;
 
     let token = Token::new()?;
 
@@ -487,8 +627,6 @@ pub(super) enum UpdateError {
     DockerError(#[from] bollard::errors::Error),
     #[error("Expected newly created image to have an id")]
     NoImageId,
-    #[error("Container was configured without image")]
-    NoImage,
     #[error("Container has no name")]
     NoContainerName,
 }
@@ -512,12 +650,8 @@ pub(super) async fn update(
     let update_lock = locks.entry(container_id.clone()).or_default();
 
     // Don't interfere with running updates. Could make things awkward
-    // Technically the current update should be cancelled as it might have pulled the last image which is now outdated
-    // but we don't expect so many updates to happen at the same time for this to become a problem
-    let Ok(_lock) = update_lock.try_lock() else {
-        tracing::debug!("Update already underway");
-        return Ok(UpdateResult::AlreadyStarted);
-    };
+    //TODO restrict queue size
+    let _lock = update_lock.lock().await;
 
     // Check if containers already exists
     let result = state
@@ -553,47 +687,52 @@ pub(super) async fn update(
     };
 
     let image_name = container
-        .clone()
-        .and_then(|container| container.config)
-        .and_then(|configuration| configuration.image)
-        .ok_or(UpdateError::NoImage)?;
+        .as_ref()
+        .and_then(|container| container.config.as_ref())
+        .and_then(|configuration| configuration.image.clone());
 
     tracing::debug!("Container image id: {:?}", container_image_id);
 
-    // Pull latest image
-    let options = Some(CreateImageOptions {
-        // Always include the tag in the name
-        from_image: image_name.clone(),
-        platform: "linux/amd64".to_string(),
-        ..Default::default()
-    });
+    let image_name = if let Some(image_name) = image_name {
+        // Pull latest image
+        let options = Some(CreateImageOptions {
+            // Always include the tag in the name
+            from_image: image_name.clone(),
+            platform: "linux/amd64".to_string(),
+            ..Default::default()
+        });
 
-    tracing::debug!("Pulling image");
+        tracing::debug!("Pulling image");
 
-    let mut responses = state.docker.create_image(options, None, None);
-    while let Some(result) = responses.next().await {
-        let information = result?;
-        tracing::debug!("Create image: {:?}", information.status);
-    }
+        let mut responses = state.docker.create_image(options, None, None);
+        while let Some(result) = responses.next().await {
+            let information = result?;
+            tracing::debug!("Create image: {:?}", information.status);
+        }
 
-    // Get newly pulled image
-    let image = state.docker.inspect_image(image_name.as_ref()).await?;
-    tracing::debug!("New image id: {:?}", image.id);
-    let new_id = image.id.ok_or(UpdateError::NoImageId)?;
+        // Get newly pulled image
+        let image = state.docker.inspect_image(image_name.as_ref()).await?;
+        tracing::debug!("New image id: {:?}", image.id);
+        let new_id = image.id.ok_or(UpdateError::NoImageId)?;
 
-    if container_image_id.is_some_and(|id| id == new_id) {
-        tracing::debug!("Container is up to date");
-        return Ok(UpdateResult::Completed);
-    }
+        if container_image_id.is_some_and(|id| id == new_id) {
+            tracing::debug!("Container is up to date");
+            return Ok(UpdateResult::Completed);
+        }
+
+        Some(image_name)
+    } else {
+        None
+    };
 
     let container_name = container
-        .clone()
-        .and_then(|container| container.name)
+        .as_ref()
+        .and_then(|container| container.name.clone())
         .ok_or(UpdateError::NoContainerName)?;
 
     // Stop container if it exists
-    if let Some(container) = container.clone() {
-        let id = container.id.unwrap_or(container_name.clone());
+    if let Some(container) = container.as_ref() {
+        let id = container.id.clone().unwrap_or(container_name.clone());
 
         tracing::debug!("Stopping container");
         // Returns 304 if the container is not running
@@ -614,25 +753,18 @@ pub(super) async fn update(
         platform: Some("linux/amd64"),
     });
 
-    let host_configuration = HostConfig {
-        port_bindings: Some(HashMap::from([(
-            "3000/tcp".to_string(),
-            Some(vec![PortBinding {
-                host_ip: Some("0.0.0.0".to_string()),
-                host_port: Some("3000".to_string()),
-            }]),
-        )])),
-        ..Default::default()
-    };
+    let host_configuration = container
+        .as_ref()
+        .and_then(|container| container.host_config.clone());
 
     // Run with same environment variables
     let environment_variables = container
         .and_then(|container| container.config.and_then(|configuration| configuration.env));
 
     let configuration = container::Config {
-        image: Some(image_name),
+        image: image_name,
         // exposed_ports: Some(HashMap::from([("3000", HashMap::default())])),
-        host_config: Some(host_configuration),
+        host_config: host_configuration,
         env: environment_variables,
         ..Default::default()
     };

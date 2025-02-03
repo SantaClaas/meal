@@ -1,19 +1,40 @@
 {% extends "layout.html" %}
 
 {% block content %}
+<main>
 
-{% if let Some(variables) = variables %}
-{% if variables.is_empty() %}
-<p>No environment variables</p>
-{% else %}
-<dl>
-    {% for (key, value) in variables %}
-    <dt>{{ key }}</dt>
-    <dd>{{ value }}</dd>
-    {% endfor %}
-</dl>
-{% endif %}
-{% endif %}
+    {% if let Some(variables) = variables %}
+    {% if variables.is_empty() %}
+    <p>No environment variables</p>
+    {% else %}
+    <ul class="grid grid-cols-[repeat(auto,5)] font-mono">
+
+        {% for (key, value) in variables %}
+        <li class="grid col-span-5 grid-cols-subgrid">
+            <form method="post" action="/containers/{{ container_id }}/environment/variables/update" class="contents">
+                <input type="text" name="key" value="{{ key }}" required class="field-sizing-content">
+                <span>=</span>
+                <input type="text" name="value" value="{{ value }}" required class="field-sizing-content">
+                <button type="submit">Update</button>
+            </form>
+            <form method="post" class="contents">
+                <input type="hidden" name="key" value="{{ key }}">
+                <button type="submit"
+                    formaction="/containers/{{ container_id }}/environment/variables/delete">Delete</button>
+            </form>
+        </li>
+        {% endfor %}
+    </ul>
+
+    {% endif %}
+    <form method="post" action="/containers/{{ container_id }}/environment/variables">
+        <input type="text" name="key" placeholder="KEY" class="field-sizing-content">
+        <span>=</span>
+        <input type="text" name="value" placeholder="VALUE" class="field-sizing-content">
+        <button type="submit">Add</button>
+    </form>
+    {% endif %}
+</main>
 
 {% endblock %}
 

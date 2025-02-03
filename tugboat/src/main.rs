@@ -1,6 +1,7 @@
 mod auth;
 mod database;
 mod docker;
+mod r#macro;
 mod route;
 mod secret;
 
@@ -13,7 +14,10 @@ use base64::{prelude::BASE64_URL_SAFE_NO_PAD, Engine};
 use bollard::Docker;
 use route::collect_garbage;
 use secret::Secrets;
-use tokio::{signal, sync::Mutex};
+use tokio::{
+    signal,
+    sync::Mutex,
+};
 use tower_http::{sensitive_headers::SetSensitiveRequestHeadersLayer, services::ServeDir};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -61,6 +65,8 @@ async fn shutdown_signal() {
     tracing::info!("Termination requested. Shutting down");
 }
 
+type UpdateLocks = Arc<Mutex<HashMap<Arc<str>, Arc<Mutex<()>>>>>;
+
 #[derive(Clone)]
 struct TugState {
     docker: Docker,
@@ -70,7 +76,7 @@ struct TugState {
     /// Lock to avoid multiple updates at the same time
     /// Does not lock the docker instance as other tasks are still permitted
     connection: libsql::Connection,
-    update_locks: Arc<Mutex<HashMap<Arc<str>, Arc<Mutex<()>>>>>,
+    update_locks: UpdateLocks,
 }
 
 #[tokio::main]
