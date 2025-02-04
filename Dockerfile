@@ -65,18 +65,23 @@ COPY ./pumpe/src ./pumpe/src
 RUN cargo build --package pumpe --release
 
 
+FROM node:lts-slim AS node-base
+# Updating corepack to not have signing keys out of date
+RUN npm install --global corepack@latest
+# Installs pnpm(?)
+RUN corepack enable
+#TODO use pnpm fetch to cache dependencies and only use pnpm install --offline to not refetch
+
+
 
 
 # Build the app
-FROM node:lts AS build-app
+FROM node-base AS build-app
 WORKDIR /app-build
 # Copy build artifacts from core rust wasm build
 COPY --from=build-core /core/pkg ./core/pkg
 # Copy tool to compress files
 COPY --from=build-pumpe /target/release/pumpe ./pumpe
-
-# Installs pnpm as it is set as package manager in package.json
-RUN corepack enable
 
 # Copy over manifests
 # Workspace root
@@ -130,22 +135,19 @@ EXPOSE 3000
 CMD ["./delivery-service"]
 
 
-
-
 # Build tugboat styles
-FROM node:lts AS build-tugboat-styles
+FROM node-base AS build-tugboat-styles
 WORKDIR /tugboat-styles
 
 # Copy tool to compress files
 COPY --from=build-pumpe /target/release/pumpe ./pumpe
 
-# Installs pnpm as it is set as package manager in package.json
-RUN corepack enable
+COPY ./pnpm-workspace.yaml ./pnpm-workspace.yaml
+RUN pnpm fetch
 
 # Copy over manifests
 # Workspace root
 COPY ./package.json ./package.json
-COPY ./pnpm-workspace.yaml ./pnpm-workspace.yaml
 COPY ./pnpm-lock.yaml ./pnpm-lock.yaml
 
 # App specific

@@ -4,8 +4,11 @@
     "bitwarden",
     "dotenvy",
     "libsql",
+    "pnpx",
     "popovertarget",
     "popovertargetaction",
+    "pumpe",
+    "reqwest",
     "santaclaas",
     "thiserror"
   ]
