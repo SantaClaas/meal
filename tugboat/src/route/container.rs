@@ -394,7 +394,7 @@ pub(in crate::route) mod environment {
         let update_lock = locks.entry(container_id.clone()).or_default();
 
         // Don't interfere with running updates. Could make things awkward
-        //TODO restrict queue size
+        //TODO restrict queue size/only take latest
         let _lock = update_lock.lock().await;
 
         // Stop container
@@ -716,102 +716,68 @@ pub(super) async fn update(
     let update_lock = locks.entry(container_id.clone()).or_default();
 
     // Don't interfere with running updates. Could make things awkward
-    //TODO restrict queue size
+    //TODO restrict queue size/only take latest
     let _lock = update_lock.lock().await;
 
     // Check if containers already exists
-    let result = state
+    let container = state
         .docker
         .inspect_container(container_id.as_ref(), None::<InspectContainerOptions>)
-        .await;
-
-    // 404 Not found is okay
-    /// This constant can be inlined in future Rust versions
-    const NOT_FOUND: u16 = http::StatusCode::NOT_FOUND.as_u16();
-    let container = result.map(Option::Some).or_else(|error| match error {
-        bollard::errors::Error::DockerResponseServerError {
-            status_code: NOT_FOUND,
-            message: _,
-        } => Ok(None),
-        other => Err(other),
-    })?;
-
-    // If the image id is none, then it is invalid and needs to be updated
-    let container_image_id = if let Some(container_image) = container
-        .as_ref()
-        .and_then(|container| container.image.clone())
-    {
-        let image = state.docker.inspect_image(&container_image).await?;
-        // Just to see if they are the same
-        if image.id.clone().is_some_and(|id| id == container_image) {
-            tracing::debug!("They are the same!");
-        }
-
-        image.id
-    } else {
-        None
-    };
-
-    let image_name = container
-        .as_ref()
-        .and_then(|container| container.config.as_ref())
-        .and_then(|configuration| configuration.image.clone());
-
-    tracing::debug!("Container image id: {:?}", container_image_id);
-
-    let image_name = if let Some(image_name) = image_name {
-        // Pull latest image
-        let options = Some(CreateImageOptions {
-            // Always include the tag in the name
-            from_image: image_name.clone(),
-            platform: "linux/amd64".to_string(),
-            ..Default::default()
-        });
-
-        tracing::debug!("Pulling image");
-
-        let mut responses = state.docker.create_image(options, None, None);
-        while let Some(result) = responses.next().await {
-            let information = result?;
-            tracing::debug!("Create image: {:?}", information.status);
-        }
-
-        // Get newly pulled image
-        let image = state.docker.inspect_image(image_name.as_ref()).await?;
-        tracing::debug!("New image id: {:?}", image.id);
-        let new_id = image.id.ok_or(UpdateError::NoImageId)?;
-
-        if container_image_id.is_some_and(|id| id == new_id) {
-            tracing::debug!("Container is up to date");
-            return Ok(UpdateResult::Completed);
-        }
-
-        Some(image_name)
-    } else {
-        None
-    };
+        .await?;
 
     let container_name = container
+        .name
         .as_ref()
-        .and_then(|container| container.name.clone())
         .ok_or(UpdateError::NoContainerName)?;
 
-    // Stop container if it exists
-    if let Some(container) = container.as_ref() {
-        let id = container.id.clone().unwrap_or(container_name.clone());
+    let configuration = migrate_configuration(&container);
 
-        tracing::debug!("Stopping container");
-        // Returns 304 if the container is not running
-        state
-            .docker
-            .stop_container(&id, None::<StopContainerOptions>)
-            .await?;
+    let Some(image_name) = configuration.image.as_ref() else {
+        // Updating an image that does not exist is immediately completed
+        tracing::debug!("Container has no image. No image to update. Update completed.");
+        return Ok(UpdateResult::Completed);
+    };
 
-        state
-            .docker
-            .remove_container(&id, None::<RemoveContainerOptions>)
-            .await?;
+    // If the image id is none, then it is invalid and needs to be updated
+    let old_image_id = state.docker.inspect_image(&image_name).await?.id;
+
+    // Pull latest image
+    tracing::debug!("Pulling image");
+    let options = Some(CreateImageOptions {
+        // Always include the tag in the name
+        from_image: image_name.clone(),
+        platform: "linux/amd64".to_string(),
+        ..Default::default()
+    });
+
+    let mut response_stream = state.docker.create_image(options, None, None);
+    while let Some(result) = response_stream.next().await {
+        let information = result?;
+        tracing::debug!("Create image: {:?}", information.status);
     }
+    // Get newly pulled image
+    let image = state.docker.inspect_image(image_name.as_ref()).await?;
+    tracing::debug!("New image id: {:?}", image.id);
+    let new_image_id = image.id.ok_or(UpdateError::NoImageId)?;
+
+    if old_image_id.is_some_and(|id| id == new_image_id) {
+        tracing::debug!("Container is up to date");
+        return Ok(UpdateResult::Completed);
+    }
+
+    // Stop container
+
+    tracing::debug!("Stopping container");
+    // Returns 304 if the container is not running
+    state
+        .docker
+        .stop_container(&container_id, None::<StopContainerOptions>)
+        .await?;
+
+    state
+        .docker
+        .remove_container(&container_id, None::<RemoveContainerOptions>)
+        .await?;
 
     // Create container
     let options = Some(CreateContainerOptions {
@@ -819,33 +785,7 @@ pub(super) async fn update(
         platform: Some("linux/amd64"),
     });
 
-    let host_configuration = container
-        .as_ref()
-        .and_then(|container| container.host_config.clone());
-
-    // Run with same environment variables
-    let environment_variables = container.as_ref().and_then(|container| {
-        container
-            .config
-            .as_ref()
-            .and_then(|configuration| configuration.env.clone())
-    });
-
-    let labels = container.and_then(|container| {
-        container
-            .config
-            .and_then(|configuration| configuration.labels)
-    });
-    let configuration = container::Config {
-        image: image_name,
-        // exposed_ports: Some(HashMap::from([("3000", HashMap::default())])),
-        host_config: host_configuration,
-        env: environment_variables,
-        labels,
-        ..Default::default()
-    };
-
-    tracing::debug!("Creating container",);
+    tracing::debug!("Creating container");
 
     let new_container = state
         .docker
