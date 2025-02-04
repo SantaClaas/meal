@@ -88,7 +88,7 @@ COPY ./pnpm-lock.yaml ./pnpm-lock.yaml
 COPY ./app/package.json ./app/package.json
 
 # Install dependencies
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
 
 # Copy over the source to build the application
 COPY ./app ./app
@@ -152,7 +152,7 @@ COPY ./pnpm-lock.yaml ./pnpm-lock.yaml
 COPY ./tugboat/package.json ./tugboat/package.json
 
 # Install dependencies
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
 
 # Copy over the source to build the styles
 COPY ./tugboat ./tugboat
