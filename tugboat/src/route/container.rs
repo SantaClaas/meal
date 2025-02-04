@@ -191,6 +191,45 @@ async fn get_container(
         .map_err(GetContainerError)
 }
 
+fn migrate_configuration(container: &ContainerInspectResponse) -> container::Config<String> {
+    container::Config {
+        image: container.image.clone(),
+        host_config: container.host_config.clone(),
+        env: container
+            .config
+            .as_ref()
+            .and_then(|configuration| configuration.env.clone()),
+        labels: container
+            .config
+            .as_ref()
+            .and_then(|configuration| configuration.labels.clone()),
+        ..Default::default()
+    }
+}
+
+async fn update_container_id(
+    connection: libsql::Connection,
+    container_id: impl AsRef<str>,
+    new_id: impl AsRef<str>,
+) -> Result<(), StatementError> {
+    let mut statement = connection
+        .prepare("UPDATE tokens SET container_id = :new_id WHERE container_id = :old_id")
+        .await
+        .map_err(StatementError::PrepareStatementError)?;
+
+    let updated_rows = statement
+        .execute(named_params! {
+            ":old_id": container_id.as_ref(),
+            ":new_id": new_id.as_ref(),
+        })
+        .await
+        .map_err(StatementError::ExecuteStatementError)?;
+
+    assert!(updated_rows < 2, "Expected to update one or no container");
+
+    Ok(())
+}
+
 pub(in crate::route) mod environment {
     use std::sync::Arc;
 
@@ -201,15 +240,21 @@ pub(in crate::route) mod environment {
         response::{IntoResponse, Redirect, Response},
         Form,
     };
+    use bitwarden::error;
     use bollard::container::{
         self, CreateContainerOptions, RemoveContainerOptions, StartContainerOptions,
         StopContainerOptions,
     };
+    use libsql::named_params;
     use serde::Deserialize;
 
-    use crate::{redirect_to, TugState};
+    use crate::{
+        redirect_to,
+        route::container::{migrate_configuration, update_container_id},
+        TugState,
+    };
 
-    use super::{get_container, GetContainerError};
+    use super::{get_container, GetContainerError, StatementError};
 
     #[derive(Template)]
     #[template(path = "container/environment.html")]
@@ -288,6 +333,8 @@ pub(in crate::route) mod environment {
         UpdateError(#[from] bollard::errors::Error),
         #[error("Container was configured without name")]
         NoContainerName,
+        #[error("Error updating container id: {0}")]
+        UpdateContainerIdError(#[from] StatementError),
     }
 
     impl IntoResponse for UpdateError {
@@ -304,9 +351,36 @@ pub(in crate::route) mod environment {
                     tracing::error!("Error updating environment variable: {error}");
                     StatusCode::INTERNAL_SERVER_ERROR.into_response()
                 }
-                UpdateError::NoContainerName => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+                Self::NoContainerName => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+                Self::UpdateContainerIdError(error) => {
+                    StatusCode::INTERNAL_SERVER_ERROR.into_response()
+                }
             }
         }
+    }
+
+    fn insert_variable(
+        configuration: &mut container::Config<String>,
+        key: Arc<str>,
+        value: Arc<str>,
+    ) {
+        let new_variable = format!("{}={}", key, value);
+
+        let Some(variables) = configuration.env.as_mut() else {
+            configuration.env = Some(vec![new_variable]);
+            return;
+        };
+
+        let index = variables
+            .iter()
+            .position(|variable| variable.starts_with(key.as_ref()));
+
+        let Some(index) = index else {
+            variables.push(new_variable);
+            return;
+        };
+
+        variables[index] = new_variable;
     }
 
     pub(in crate::route) async fn update(
@@ -336,66 +410,41 @@ pub(in crate::route) mod environment {
 
         // Extract container creation parameters
 
-        let container_name = container.name.ok_or(UpdateError::NoContainerName)?;
-        let image_name = container
-            .config
-            .as_ref()
-            .and_then(|configuration| configuration.image.clone());
-
-        let host_configuration = container.host_config;
-        let mut environment_variables = container
-            .config
-            .as_ref()
-            .and_then(|configuration| configuration.env.clone());
+        let mut configuration = migrate_configuration(&container);
 
         // Merge with variables from request
-        if let Some(variables) = environment_variables.as_mut() {
-            let index = variables
-                .iter()
-                .position(|variable| variable.starts_with(request.key.as_ref()));
+        insert_variable(&mut configuration, request.key, request.value);
 
-            let new_variable = format!("{}={}", request.key, request.value);
-            if let Some(index) = index {
-                variables[index] = new_variable;
-            } else {
-                variables.push(new_variable);
-            }
-        }
-
-        let labels = container
-            .config
-            .as_ref()
-            .and_then(|configuration| configuration.labels.clone());
-
+        let container_name = container.name.ok_or(UpdateError::NoContainerName)?.clone();
         // Create container
         let options = Some(CreateContainerOptions {
             name: container_name.as_ref(),
             platform: Some("linux/amd64"),
         });
 
-        let configuration = container::Config {
-            image: image_name,
-            host_config: host_configuration,
-            env: environment_variables,
-            labels,
-            ..Default::default()
-        };
-
         tracing::debug!("Creating container",);
 
-        let response = state
+        let new_container = state
             .docker
             .create_container(options, configuration)
             .await?;
 
         tracing::debug!("Starting container");
-        state
-            .docker
-            .start_container(&response.id, None::<StartContainerOptions<String>>)
-            .await?;
+
+        let (start, update) = tokio::join!(
+            state
+                .docker
+                .start_container(&new_container.id, None::<StartContainerOptions<String>>),
+            update_container_id(state.connection, container_id, &new_container.id)
+        );
+
+        //TODO the other error gets lost if the first one errors
+        start?;
+        update?;
 
         Ok(redirect_to!(
-            "/containers/{container_id}/environment/variables"
+            "/containers/{}/environment/variables",
+            new_container.id
         ))
     }
 
@@ -497,10 +546,9 @@ pub(super) enum CreateTokenError {
     CreateTokenError(#[from] token::CreateError),
     #[error("Error hashing token: {0}")]
     HashTokenError(#[from] token::HashError),
-    #[error("Error preparing SQL statement: {0}")]
-    PrepareStatementError(libsql::Error),
-    #[error("Error executing SQL statement: {0}")]
-    ExecuteStatementError(libsql::Error),
+
+    #[error("Error running SQL statement: {0}")]
+    StatementError(#[from] StatementError),
 }
 
 impl IntoResponse for CreateTokenError {
@@ -517,6 +565,14 @@ impl IntoResponse for CreateTokenError {
 #[template(path = "container/token.html")]
 pub(super) struct CreateTokenResultTemplate {
     token: Arc<str>,
+}
+
+#[derive(thiserror::Error, Debug)]
+enum StatementError {
+    #[error("Error preparing SQL statement: {0}")]
+    PrepareStatementError(libsql::Error),
+    #[error("Error executing SQL statement: {0}")]
+    ExecuteStatementError(libsql::Error),
 }
 
 pub(super) async fn create_token(
@@ -537,7 +593,7 @@ pub(super) async fn create_token(
             "INSERT OR REPLACE INTO tokens (container_id, token_hash) VALUES (:container_id, :token_hash)",
         )
         .await
-        .map_err(CreateTokenError::PrepareStatementError)?;
+        .map_err(StatementError::PrepareStatementError)?;
 
     let updated_rows = statement
         .execute(named_params! {
@@ -545,7 +601,7 @@ pub(super) async fn create_token(
             ":token_hash": hash.as_ref(),
         })
         .await
-        .map_err(CreateTokenError::ExecuteStatementError)?;
+        .map_err(StatementError::ExecuteStatementError)?;
 
     assert_eq!(updated_rows, 1, "Expected to update one row");
 
@@ -637,6 +693,8 @@ pub(super) enum UpdateError {
     NoImageId,
     #[error("Container has no name")]
     NoContainerName,
+    #[error("Error updating container id: {0}")]
+    UpdateContainerIdError(#[from] StatementError),
 }
 
 impl IntoResponse for UpdateError {
@@ -789,16 +847,23 @@ pub(super) async fn update(
 
     tracing::debug!("Creating container",);
 
-    let response = state
+    let new_container = state
         .docker
         .create_container(options, configuration)
         .await?;
 
     tracing::debug!("Starting container");
-    state
-        .docker
-        .start_container(&response.id, None::<StartContainerOptions<String>>)
-        .await?;
+
+    let (start, update) = tokio::join!(
+        state
+            .docker
+            .start_container(&new_container.id, None::<StartContainerOptions<String>>),
+        update_container_id(state.connection, container_id, &new_container.id)
+    );
+
+    //TODO the other error gets lost if the first one errors
+    start?;
+    update?;
 
     tracing::debug!("Started container");
     Ok(UpdateResult::Completed)
