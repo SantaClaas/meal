@@ -58,8 +58,8 @@
         <li>
             <button popovertarget="details-{{ container.id }}">
                 {{ container.name }}
-                {% if let Some(state) = container.state %}
-                ({{ state }})
+                {% if let Some(status) = container.status %}
+                ({{ status }})
                 {% endif %}
             </button>
             <dialog id="details-{{ container.id }}" popover>
@@ -79,6 +79,18 @@
                 <form action="/containers/{{ container.id }}/token" method="post">
                     <button type="submit">Create Token</button>
                 </form>
+                {% if let Some(status) = container.status %}
+                {% if status.is_running() %}
+                <form action="/containers/{{ container.id }}/stop" method="post">
+                    <button type="submit">Stop</button>
+                </form>
+                {% else %}
+                <form action="/containers/{{ container.id }}/start" method="post">
+                    <button type="submit">Start</button>
+                </form>
+
+                {% endif %}
+                {% endif %}
             </dialog>
 
         </li>

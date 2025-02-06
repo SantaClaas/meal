@@ -1,3 +1,4 @@
+use core::fmt;
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use askama::Template;
@@ -24,11 +25,58 @@ use crate::{route::token::Token, TugState};
 
 use super::token;
 
+enum Status {
+    Created,
+    Running,
+    Paused,
+    Restarting,
+    Removing,
+    Exited,
+    Dead,
+    Unknown(String),
+}
+
+impl Status {
+    fn is_running(&self) -> bool {
+        matches!(self, Status::Running | Status::Restarting)
+    }
+}
+
+impl fmt::Display for Status {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let status = match self {
+            Self::Created => "created",
+            Self::Running => "running",
+            Self::Paused => "paused",
+            Self::Restarting => "restarting",
+            Self::Removing => "removing",
+            Self::Exited => "exited",
+            Self::Dead => "dead",
+            Self::Unknown(status) => status,
+        };
+        write!(formatter, "{status}")
+    }
+}
+
+impl From<String> for Status {
+    fn from(status: String) -> Self {
+        match status.as_ref() {
+            "created" => Self::Created,
+            "running" => Self::Running,
+            "paused" => Self::Paused,
+            "restarting" => Self::Restarting,
+            "removing" => Self::Removing,
+            "exited" => Self::Exited,
+            "dead" => Self::Dead,
+            other => Self::Unknown(other.to_owned()),
+        }
+    }
+}
 struct Container {
     id: Arc<str>,
     name: Arc<str>,
     image: Arc<str>,
-    state: Option<String>,
+    status: Option<Status>,
 }
 
 #[derive(Template)]
@@ -106,7 +154,7 @@ async fn get_containers(docker: &Docker) -> Result<Vec<Container>, GetContainers
                 id: id.as_str().into(),
                 name: name.into(),
                 image: image.into(),
-                state: container.state,
+                status: container.state.map(Status::from),
             })
         })
         .collect()
@@ -807,4 +855,52 @@ pub(super) async fn update(
 
     tracing::debug!("Started container");
     Ok(UpdateResult::Completed)
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error("Error stopping container: {0}")]
+pub(in crate::route) struct StopError(#[from] bollard::errors::Error);
+
+impl IntoResponse for StopError {
+    fn into_response(self) -> axum::response::Response {
+        tracing::error!("Error stopping container: {:?}", self);
+        StatusCode::INTERNAL_SERVER_ERROR.into_response()
+    }
+}
+
+pub(in crate::route) async fn stop_container(
+    State(state): State<TugState>,
+    Path(container_id): Path<Arc<str>>,
+) -> Result<Redirect, StopError> {
+    tracing::debug!("Stopping container {container_id}");
+    state
+        .docker
+        .stop_container(&container_id, None::<StopContainerOptions>)
+        .await?;
+
+    Ok(Redirect::to("/containers"))
+}
+
+#[derive(thiserror::Error, Debug)]
+#[error("Error starting container: {0}")]
+pub(in crate::route) struct StartError(#[from] bollard::errors::Error);
+
+impl IntoResponse for StartError {
+    fn into_response(self) -> axum::response::Response {
+        tracing::error!("Error starting container: {:?}", self);
+        StatusCode::INTERNAL_SERVER_ERROR.into_response()
+    }
+}
+
+pub(in crate::route) async fn start_container(
+    State(state): State<TugState>,
+    Path(container_id): Path<Arc<str>>,
+) -> Result<Redirect, StartError> {
+    tracing::debug!("Starting container {container_id}");
+    state
+        .docker
+        .start_container(&container_id, None::<StartContainerOptions<String>>)
+        .await?;
+
+    Ok(Redirect::to("/containers"))
 }
