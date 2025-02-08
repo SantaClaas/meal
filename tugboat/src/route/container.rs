@@ -4,7 +4,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use askama::Template;
 use axum::{
     extract::{Path, State},
-    http::{self, StatusCode},
+    http::StatusCode,
     response::{IntoResponse, Redirect, Response},
 };
 use bollard::{
@@ -239,10 +239,24 @@ async fn get_container(
         .map_err(GetContainerError)
 }
 
+/// We only migrate the settings that can be set by our app as the other values are the default values set by the
+/// container runtime and changing them can break creating the container depending on the runtime
+/// For example podman with cgroupv2 can not set the memory swappiness on a container and will error with
+/// "500: crun: cannot set memory swappiness with cgroupv2: OCI runtime error"
+fn migrate_host_configuration(container: &HostConfig) -> HostConfig {
+    HostConfig {
+        port_bindings: container.port_bindings.clone(),
+        ..Default::default()
+    }
+}
+
 fn migrate_configuration(container: &ContainerInspectResponse) -> container::Config<String> {
     container::Config {
         image: container.image.clone(),
-        host_config: container.host_config.clone(),
+        host_config: container
+            .host_config
+            .as_ref()
+            .map(migrate_host_configuration),
         env: container
             .config
             .as_ref()
@@ -288,12 +302,12 @@ pub(in crate::route) mod environment {
         response::{IntoResponse, Redirect, Response},
         Form,
     };
-    use bitwarden::error;
+
     use bollard::container::{
         self, CreateContainerOptions, RemoveContainerOptions, StartContainerOptions,
         StopContainerOptions,
     };
-    use libsql::named_params;
+
     use serde::Deserialize;
 
     use crate::{
