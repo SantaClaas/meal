@@ -35,7 +35,6 @@
                 <input type="number" id="host-port" name="host_port" min="1" max="65535" placeholder="80"
                     class="block mt-2 w-full rounded-md bg-slate-800 px-3 py-1.5 text-base text-slate-100 outline-1 -outline-offset-1 outline-gray-700 placeholder:text-gray-600 focus:outline-2 focus:-outline-offset-2 focus:outline-amber-600 sm:text-sm/6">
             </fieldset>
-
         </form>
 
         <footer class="flex justify-end px-3 pt-2 pb-3 text-sm font-medium leading-5 gap-x-2 text-slate-200">
@@ -84,13 +83,18 @@
                 <form action="/containers/{{ container.id }}/stop" method="post">
                     <button type="submit">Stop</button>
                 </form>
+
                 {% else %}
                 <form action="/containers/{{ container.id }}/start" method="post">
                     <button type="submit">Start</button>
                 </form>
 
+                <form action="/containers/{{ container.id }}/delete" method="post">
+                    <button type="submit">Delete</button>
+                </form>
                 {% endif %}
                 {% endif %}
+
             </dialog>
 
         </li>

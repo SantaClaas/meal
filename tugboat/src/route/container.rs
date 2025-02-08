@@ -904,3 +904,27 @@ pub(in crate::route) async fn start_container(
 
     Ok(Redirect::to("/containers"))
 }
+
+#[derive(thiserror::Error, Debug)]
+#[error("Error deleting container: {0}")]
+pub(in crate::route) struct DeleteError(#[from] bollard::errors::Error);
+
+impl IntoResponse for DeleteError {
+    fn into_response(self) -> axum::response::Response {
+        tracing::error!("Error deleting container: {:?}", self);
+        StatusCode::INTERNAL_SERVER_ERROR.into_response()
+    }
+}
+
+pub(in crate::route) async fn delete(
+    State(state): State<TugState>,
+    Path(container_id): Path<Arc<str>>,
+) -> Result<Redirect, DeleteError> {
+    tracing::debug!("Deleting container {container_id}");
+    state
+        .docker
+        .remove_container(&container_id, None::<RemoveContainerOptions>)
+        .await?;
+
+    Ok(Redirect::to("/containers"))
+}

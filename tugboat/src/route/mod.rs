@@ -49,7 +49,8 @@ pub(super) fn get_for_humans() -> Router<TugState> {
             get(container::environment::get_variables).post(container::environment::update),
         )
         .route("/:container_id/stop", post(container::stop_container))
-        .route("/:container_id/start", post(container::start_container));
+        .route("/:container_id/start", post(container::start_container))
+        .route("/:container_id/delete", post(container::delete));
 
     Router::new()
         .route("/", get(|| async { Redirect::to("/containers") }))
