@@ -14,10 +14,7 @@ use base64::{prelude::BASE64_URL_SAFE_NO_PAD, Engine};
 use bollard::Docker;
 use route::collect_garbage;
 use secret::Secrets;
-use tokio::{
-    signal,
-    sync::Mutex,
-};
+use tokio::{signal, sync::Mutex};
 use tower_http::{sensitive_headers::SetSensitiveRequestHeadersLayer, services::ServeDir};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -84,7 +81,11 @@ async fn main() -> Result<(), TugError> {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-                format!("{}=trace,tower_http=debug", env!("CARGO_CRATE_NAME")).into()
+                format!(
+                    "{}=trace,tower_http=debug,bollard=debug",
+                    env!("CARGO_CRATE_NAME")
+                )
+                .into()
             }),
         )
         .with(tracing_subscriber::fmt::layer())
