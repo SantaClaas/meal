@@ -68,18 +68,6 @@ fn encode_application_id(mut id: String, name: &Option<String>) -> Extensions {
     )))
 }
 
-fn decode_application_id(application_id: &ApplicationIdExtension) -> (String, Option<String>) {
-    let string = str::from_utf8(application_id.as_slice()).unwrap();
-    if string.len() > ID_LENGTH {
-        (
-            string[..ID_LENGTH].to_owned(),
-            Some(string[ID_LENGTH..].to_owned()),
-        )
-    } else {
-        (string.to_owned(), None)
-    }
-}
-
 /// Defines a message sent on the application layer.
 /// This gets transported using MLS but is otherwise independent of the protocol.
 #[derive(Serialize, Deserialize)]

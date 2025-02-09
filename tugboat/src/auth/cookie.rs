@@ -14,12 +14,6 @@ pub(crate) struct Key(AxumKey);
 pub(super) const NAME: &str = "session";
 impl Key {
     pub(crate) const LENGTH: usize = 64;
-    pub(crate) fn new() -> Option<Self> {
-        let j = AxumKey::try_generate().unwrap();
-        let data = j.master();
-        dbg!(BASE64_URL_SAFE_NO_PAD.encode(data));
-        AxumKey::try_generate().map(Self)
-    }
 }
 
 impl From<[u8; Key::LENGTH]> for Key {
@@ -65,7 +59,7 @@ impl Session {
 }
 
 #[derive(Error, Debug)]
-pub(super) enum Error {
+pub(crate) enum Error {
     #[error("Bad cookie encoding: {0}")]
     BadCookieEncoding(#[from] base64::DecodeError),
     #[error("Bad cookie: {0}")]
@@ -77,8 +71,8 @@ impl TryFrom<Cookie<'_>> for Session {
 
     fn try_from(cookie: Cookie) -> Result<Self, Self::Error> {
         let encoded = cookie.value();
-        let serialied = BASE64_URL_SAFE_NO_PAD.decode(encoded)?;
-        let value = postcard::from_bytes(&serialied)?;
+        let serialized = BASE64_URL_SAFE_NO_PAD.decode(encoded)?;
+        let value = postcard::from_bytes(&serialized)?;
         Ok(value)
     }
 }

@@ -18,7 +18,6 @@ use bollard::{
 };
 use libsql::named_params;
 use serde::Deserialize;
-use sha2::Digest;
 use tokio_stream::StreamExt;
 
 use crate::{route::token::Token, TugState};
@@ -87,7 +86,7 @@ pub(super) struct IndexTemplate {
 }
 
 #[derive(thiserror::Error, Debug)]
-enum CreateIndexTemplateError {
+pub(super) enum CreateIndexTemplateError {
     #[error("Error listing containers: {0}")]
     GetContainersError(#[from] GetContainersError),
 }
@@ -187,7 +186,6 @@ pub(super) struct CreateRequest {
     image: Arc<str>,
     container_port: Option<Port>,
     host_port: Option<Port>,
-    environment_file: Option<Arc<str>>,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -216,7 +214,7 @@ mod label {
 
 #[derive(thiserror::Error, Debug)]
 #[error("Error getting container by id: {0}")]
-struct GetContainerError(#[from] bollard::errors::Error);
+pub(super) struct GetContainerError(#[from] bollard::errors::Error);
 impl GetContainerError {
     fn is_not_found(&self) -> bool {
         matches!(
@@ -415,6 +413,7 @@ pub(in crate::route) mod environment {
                 }
                 Self::NoContainerName => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
                 Self::UpdateContainerIdError(error) => {
+                    tracing::error!("Error updating container id: {error}");
                     StatusCode::INTERNAL_SERVER_ERROR.into_response()
                 }
             }
@@ -509,24 +508,6 @@ pub(in crate::route) mod environment {
             new_container.id
         ))
     }
-
-    pub(super) fn try_load_from_file(path: impl AsRef<str>) -> Option<Vec<String>> {
-        let variables = dotenvy::from_path_iter(path.as_ref())
-            .inspect_err(|error| {
-                tracing::error!("Error loading environment variables from file: {error}")
-            })
-            .ok()?
-            .filter_map(|item| match item {
-                Ok((key, value)) => Some(format!("{key}={value}")),
-                Err(error) => {
-                    tracing::error!("Error loading environment variable: {error}");
-                    None
-                }
-            })
-            .collect();
-
-        Some(variables)
-    }
 }
 
 pub(super) async fn create(
@@ -572,11 +553,8 @@ pub(super) async fn create(
         None
     };
 
-    // Load environment variables from file
-
     let configuration = container::Config::<String> {
         image: Some(String::from(request.image.as_ref())),
-        // exposed_ports: Some(HashMap::from([("3000", HashMap::default())])),
         host_config: host_configuration,
         labels: Some(HashMap::from([(label::TAG.to_owned(), String::default())])),
         ..Default::default()
@@ -630,7 +608,7 @@ pub(super) struct CreateTokenResultTemplate {
 }
 
 #[derive(thiserror::Error, Debug)]
-enum StatementError {
+pub(super) enum StatementError {
     #[error("Error preparing SQL statement: {0}")]
     PrepareStatementError(libsql::Error),
     #[error("Error executing SQL statement: {0}")]
@@ -733,20 +711,6 @@ pub(crate) async fn collect_garbage(state: TugState) {
     }
 }
 
-pub(super) enum UpdateResult {
-    Completed,
-    AlreadyStarted,
-}
-
-impl IntoResponse for UpdateResult {
-    fn into_response(self) -> axum::response::Response {
-        match self {
-            UpdateResult::Completed => StatusCode::OK.into_response(),
-            UpdateResult::AlreadyStarted => StatusCode::ACCEPTED.into_response(),
-        }
-    }
-}
-
 #[derive(thiserror::Error, Debug)]
 pub(super) enum UpdateError {
     #[error(transparent)]
@@ -771,7 +735,7 @@ impl IntoResponse for UpdateError {
 pub(super) async fn update(
     State(state): State<TugState>,
     Path(container_id): Path<Arc<str>>,
-) -> Result<UpdateResult, UpdateError> {
+) -> Result<(), UpdateError> {
     //TODO remove clones
     //TODO run update in background and immediately respond with Accepted (202) status code
     let mut locks = state.update_locks.lock().await;
@@ -797,7 +761,7 @@ pub(super) async fn update(
     let Some(image_name) = configuration.image.as_ref() else {
         // Updating an image that does not exist is immediately completed
         tracing::debug!("Container has no image. No image to update. Update completed.");
-        return Ok(UpdateResult::Completed);
+        return Ok(());
     };
 
     // If the image id is none, then it is invalid and needs to be updated
@@ -824,7 +788,7 @@ pub(super) async fn update(
 
     if old_image_id.is_some_and(|id| id == new_image_id) {
         tracing::debug!("Container is up to date");
-        return Ok(UpdateResult::Completed);
+        return Ok(());
     }
 
     // Stop container
@@ -868,7 +832,7 @@ pub(super) async fn update(
     update?;
 
     tracing::debug!("Started container");
-    Ok(UpdateResult::Completed)
+    Ok(())
 }
 
 #[derive(thiserror::Error, Debug)]

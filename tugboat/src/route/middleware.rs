@@ -67,8 +67,6 @@ pub(super) async fn require_container_token(
         .await
         .map_err(AuthorizationError::QueryError)?;
 
-    let hash = de::from_row::<&[u8]>(&row).map_err(AuthorizationError::ReadHashError)?;
-
     let hash =
         de::from_row::<token::ContainerHash>(&row).map_err(AuthorizationError::ReadHashError)?;
 
