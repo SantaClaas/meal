@@ -28,9 +28,9 @@
 
     {% endif %}
     <form method="post" action="/containers/{{ container_id }}/environment/variables">
-        <input type="text" name="key" placeholder="KEY" class="field-sizing-content">
+        <input id="key" type="text" name="key" placeholder="KEY" class="field-sizing-content">
         <span>=</span>
-        <input type="text" name="value" placeholder="VALUE" autocomplete="off" class="field-sizing-content">
+        <input id="value" type="text" name="value" placeholder="VALUE" autocomplete="off" class="field-sizing-content">
         <button type="submit">Add</button>
     </form>
     {% endif %}
@@ -39,6 +39,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script defer src="/pasteEnvironmentVariables.js"></script>
 {% endblock %}
 
 {% call super() %}
