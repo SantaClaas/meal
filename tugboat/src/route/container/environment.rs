@@ -8,20 +8,17 @@ use axum::{
     Form,
 };
 
-use bollard::container::{
-    self, CreateContainerOptions, RemoveContainerOptions, StartContainerOptions,
-    StopContainerOptions,
-};
+use bollard::container::{self};
 
 use serde::Deserialize;
 
-use crate::{
-    redirect_to,
-    route::container::{migrate_configuration, update_container_id},
-    TugState,
-};
+use crate::{redirect_to, TugState};
 
-use super::{get_container, GetContainerError, StatementError};
+use super::{
+    get_container,
+    modification::{modify, Modification, ModificationError},
+    GetContainerError,
+};
 
 #[derive(Template)]
 #[template(path = "container/environment.html")]
@@ -113,132 +110,33 @@ fn insert_variable(configuration: &mut container::Config<String>, key: Arc<str>,
     variables[index] = new_variable;
 }
 
-enum VariableModification {
-    Add { key: Arc<str>, value: Arc<str> },
-    Update { key: Arc<str>, value: Arc<str> },
+fn delete_variable(configuration: &mut container::Config<String>, key: Arc<str>) {
+    let Some(variables) = configuration.env.as_mut() else {
+        return;
+    };
+
+    let pattern = format!("{}=", key);
+    let index = variables
+        .iter()
+        .position(|variable| variable.starts_with(&pattern));
+    if let Some(index) = index {
+        variables.swap_remove(index);
+    }
+}
+
+pub(super) enum VariableModification {
+    Insert { key: Arc<str>, value: Arc<str> },
     Delete { key: Arc<str> },
 }
-#[derive(thiserror::Error, Debug)]
-pub(in crate::route) enum ModificationError {
-    #[error("Error loading container: {0}")]
-    LoadContainerError(#[from] GetContainerError),
-    #[error("Error updating environment variable: {0}")]
-    UpdateError(#[from] bollard::errors::Error),
-    #[error("Container was configured without name")]
-    NoContainerName,
-    #[error("Error updating container id: {0}")]
-    UpdateContainerIdError(#[from] StatementError),
-}
 
-impl IntoResponse for ModificationError {
-    fn into_response(self) -> Response {
-        match self {
-            Self::LoadContainerError(error) if error.is_not_found() => {
-                StatusCode::NOT_FOUND.into_response()
-            }
-            Self::LoadContainerError(error) => {
-                tracing::error!("Error loading container: {error}");
-                StatusCode::INTERNAL_SERVER_ERROR.into_response()
-            }
-            Self::UpdateError(error) => {
-                tracing::error!("Error updating environment variable: {error}");
-                StatusCode::INTERNAL_SERVER_ERROR.into_response()
-            }
-            Self::NoContainerName => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
-            Self::UpdateContainerIdError(error) => {
-                tracing::error!("Error updating container id: {error}");
-                StatusCode::INTERNAL_SERVER_ERROR.into_response()
-            }
-        }
-    }
-}
-
-async fn modify_variable(
-    State(state): State<TugState>,
-    container_id: Arc<str>,
+pub(super) fn modify_variable(
+    configuration: &mut container::Config<String>,
     modification: VariableModification,
-) -> Result<Arc<str>, ModificationError> {
-    let container = get_container(&state.docker, &container_id).await?;
-    if matches!(modification, VariableModification::Delete { .. })
-        && container.config.as_ref().is_none_or(|configuration| {
-            configuration
-                .env
-                .as_ref()
-                .is_none_or(|variables| variables.is_empty())
-        })
-    {
-        return Ok(container_id);
-    }
-
-    let mut locks = state.update_locks.lock().await;
-    let update_lock = locks.entry(container_id.clone()).or_default();
-
-    // Don't interfere with running updates. Could make things awkward
-    //TODO restrict queue size/only take latest
-    let _lock = update_lock.lock().await;
-
-    // Stop container
-    state
-        .docker
-        .stop_container(&container_id, None::<StopContainerOptions>)
-        .await?;
-
-    state
-        .docker
-        .remove_container(&container_id, None::<RemoveContainerOptions>)
-        .await?;
-
-    // Extract container creation parameters
-    let mut configuration = migrate_configuration(&container);
-
+) {
     match modification {
-        VariableModification::Add { key, value } | VariableModification::Update { key, value } => {
-            insert_variable(&mut configuration, key, value)
-        }
-        VariableModification::Delete { key } => {
-            if let Some(variables) = configuration.env.as_mut() {
-                let pattern = format!("{}=", key);
-                let index = variables
-                    .iter()
-                    .position(|variable| variable.starts_with(&pattern));
-                if let Some(index) = index {
-                    variables.swap_remove(index);
-                }
-            }
-        }
+        VariableModification::Insert { key, value } => insert_variable(configuration, key, value),
+        VariableModification::Delete { key } => delete_variable(configuration, key),
     }
-
-    let container_name = container
-        .name
-        .ok_or(ModificationError::NoContainerName)?
-        .clone();
-    // Create container
-    let options = Some(CreateContainerOptions {
-        name: container_name.as_ref(),
-        platform: Some("linux/amd64"),
-    });
-
-    tracing::debug!("Creating container",);
-
-    let new_container = state
-        .docker
-        .create_container(options, configuration)
-        .await?;
-
-    tracing::debug!("Starting container");
-
-    let (start, update) = tokio::join!(
-        state
-            .docker
-            .start_container(&new_container.id, None::<StartContainerOptions<String>>),
-        update_container_id(state.connection, container_id, &new_container.id)
-    );
-
-    //TODO the other error gets lost if the first one errors
-    start?;
-    update?;
-
-    Ok(new_container.id.into())
 }
 
 pub(in crate::route) async fn update(
@@ -246,13 +144,13 @@ pub(in crate::route) async fn update(
     Path(container_id): Path<Arc<str>>,
     Form(request): Form<UpdateRequest>,
 ) -> Result<Redirect, ModificationError> {
-    let new_container_id = modify_variable(
+    let new_container_id = modify(
         state,
         container_id,
-        VariableModification::Update {
+        Modification::EnvironmentVariable(VariableModification::Insert {
             key: request.key,
             value: request.value,
-        },
+        }),
     )
     .await?;
 
@@ -272,10 +170,10 @@ pub(in crate::route) async fn delete(
     Path(container_id): Path<Arc<str>>,
     Form(request): Form<DeleteRequest>,
 ) -> Result<Redirect, ModificationError> {
-    let new_container_id = modify_variable(
+    let new_container_id = modify(
         state,
         container_id,
-        VariableModification::Delete { key: request.key },
+        Modification::EnvironmentVariable(VariableModification::Delete { key: request.key }),
     )
     .await?;
 

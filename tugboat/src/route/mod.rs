@@ -21,7 +21,7 @@ use crate::TugState;
 pub(super) fn get_for_machines(connection: Connection) -> Router<TugState> {
     Router::new().route(
         "/containers/:container_id/update",
-        post(container::update)
+        post(container::update_image)
             .route_layer(axum::middleware::from_fn_with_state(
                 connection,
                 middleware::require_container_token,
@@ -58,7 +58,11 @@ pub(super) fn get_for_humans() -> Router<TugState> {
         )
         .route("/:container_id/stop", post(container::stop_container))
         .route("/:container_id/start", post(container::start_container))
-        .route("/:container_id/delete", post(container::delete));
+        .route("/:container_id/delete", post(container::delete))
+        .route(
+            "/:container_id/edit",
+            get(container::edit::get).post(container::edit::create),
+        );
 
     Router::new()
         .route("/", get(|| async { Redirect::to("/containers") }))

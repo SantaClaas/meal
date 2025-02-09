@@ -2,7 +2,8 @@
 
 {% block content %}
 <main>
-
+    <a href="/containers">&larr; Back</a>
+    <h1>Environment Variables</h1>
     {% if let Some(variables) = variables %}
     {% if variables.is_empty() %}
     <p>No environment variables</p>

@@ -1,7 +1,9 @@
+pub(in crate::route) mod edit;
 pub(in crate::route) mod environment;
+mod modification;
 
 use core::fmt;
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, str::FromStr, sync::Arc, time::Duration};
 
 use askama::Template;
 use axum::{
@@ -182,6 +184,20 @@ pub(super) async fn get_index(
 #[derive(Deserialize)]
 struct Port(u16);
 
+impl FromStr for Port {
+    type Err = std::num::ParseIntError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        u16::from_str(s).map(Self)
+    }
+}
+
+impl fmt::Display for Port {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(formatter)
+    }
+}
+
 #[derive(Deserialize)]
 pub(super) struct CreateRequest {
     name: Arc<str>,
@@ -317,23 +333,25 @@ pub(super) async fn create(
         platform: Some("linux/amd64"),
     });
 
-    let host_configuration = if let (Some(container_port), Some(host_port)) =
-        (request.container_port, request.host_port)
-    {
-        Some(HostConfig {
-            port_bindings: Some(HashMap::from([(
-                // "3000/tcp".to_string(),
-                format!("{}/tcp", container_port.0),
-                Some(vec![PortBinding {
-                    host_ip: Some("0.0.0.0".to_string()),
-                    host_port: Some(host_port.0.to_string()),
-                }]),
-            )])),
+    // Port bindings configuration
+
+    let host_configuration = request.container_port.map(|container_port| {
+        let mut port_bindings = HashMap::<String, Option<Vec<PortBinding>>>::new();
+        let key = format!("{}/tcp", container_port);
+
+        let host_port_bindings = port_bindings.entry(key).or_default();
+        if let Some(host_port) = request.host_port {
+            host_port_bindings.replace(vec![PortBinding {
+                host_ip: Some("0.0.0.0".to_string()),
+                host_port: Some(host_port.to_string()),
+            }]);
+        }
+
+        HostConfig {
+            port_bindings: Some(port_bindings),
             ..Default::default()
-        })
-    } else {
-        None
-    };
+        }
+    });
 
     let configuration = container::Config::<String> {
         image: Some(String::from(request.image.as_ref())),
@@ -514,7 +532,7 @@ impl IntoResponse for UpdateError {
 /// This handler expects that the request has been authorized and the authorization is valid.
 /// Authorization is not part of this handlers responsibilities.
 /// This means the container exists at least in our database.
-pub(super) async fn update(
+pub(super) async fn update_image(
     State(state): State<TugState>,
     Path(container_id): Path<Arc<str>>,
 ) -> Result<(), UpdateError> {
