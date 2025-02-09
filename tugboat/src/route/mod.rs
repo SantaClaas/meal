@@ -48,6 +48,14 @@ pub(super) fn get_for_humans() -> Router<TugState> {
             "/:container_id/environment/variables",
             get(container::environment::get_variables).post(container::environment::update),
         )
+        .route(
+            "/:container_id/environment/variables/delete",
+            post(container::environment::delete),
+        )
+        .route(
+            "/:container_id/environment/variables/update",
+            post(container::environment::update),
+        )
         .route("/:container_id/stop", post(container::stop_container))
         .route("/:container_id/start", post(container::start_container))
         .route("/:container_id/delete", post(container::delete));
