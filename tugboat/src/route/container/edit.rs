@@ -73,6 +73,8 @@ pub(in crate::route) async fn get(
         });
     };
 
+    tracing::debug!("Port bindings: {port_bindings:?}");
+
     let mut iterator = port_bindings.iter();
     let (container_port, host_ports) = iterator
         .next()
