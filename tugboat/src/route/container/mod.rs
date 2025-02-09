@@ -525,6 +525,7 @@ pub(super) enum UpdateError {
 
 impl IntoResponse for UpdateError {
     fn into_response(self) -> axum::response::Response {
+        tracing::error!("Error updating container: {:?}", self);
         StatusCode::INTERNAL_SERVER_ERROR.into_response()
     }
 }
