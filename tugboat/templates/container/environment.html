@@ -30,7 +30,7 @@
     <form method="post" action="/containers/{{ container_id }}/environment/variables">
         <input type="text" name="key" placeholder="KEY" class="field-sizing-content">
         <span>=</span>
-        <input type="text" name="value" placeholder="VALUE" class="field-sizing-content">
+        <input type="text" name="value" placeholder="VALUE" autocomplete="off" class="field-sizing-content">
         <button type="submit">Add</button>
     </form>
     {% endif %}
