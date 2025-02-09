@@ -706,3 +706,11 @@ pub(in crate::route) async fn delete(
 
     Ok(Redirect::to("/containers"))
 }
+
+pub(in crate::route) async fn pull_update(
+    state: State<TugState>,
+    path: Path<Arc<str>>,
+) -> Result<Redirect, UpdateError> {
+    update_image(state, path).await?;
+    Ok(Redirect::to("/containers"))
+}

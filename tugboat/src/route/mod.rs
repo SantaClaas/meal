@@ -62,7 +62,8 @@ pub(super) fn get_for_humans() -> Router<TugState> {
         .route(
             "/:container_id/edit",
             get(container::edit::get).post(container::edit::create),
-        );
+        )
+        .route("/:container_id/update/pull", post(container::pull_update));
 
     Router::new()
         .route("/", get(|| async { Redirect::to("/containers") }))

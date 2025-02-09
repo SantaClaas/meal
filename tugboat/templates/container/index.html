@@ -95,6 +95,9 @@
                 </form>
                 {% endif %}
                 {% endif %}
+                <form action="/containers/{{ container.id }}/update/pull" method="post">
+                    <button type="submit">Pull update</button>
+                </form>
 
             </dialog>
 
