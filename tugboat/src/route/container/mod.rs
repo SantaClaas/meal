@@ -268,7 +268,11 @@ fn migrate_host_configuration(container: &HostConfig) -> HostConfig {
 
 fn migrate_configuration(container: &ContainerInspectResponse) -> container::Config<String> {
     container::Config {
-        image: container.image.clone(),
+        // Configuration image has the name and format "image:tag" whereas container.image is the sha256 hash
+        image: container
+            .config
+            .as_ref()
+            .and_then(|configuration| configuration.image.clone()),
         host_config: container
             .host_config
             .as_ref()

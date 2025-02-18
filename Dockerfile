@@ -142,8 +142,10 @@ WORKDIR /tugboat-styles
 # Copy tool to compress files
 COPY --from=build-pumpe /target/release/pumpe ./pumpe
 
+#TODO this should be the lock file not the workspace file?
 COPY ./pnpm-workspace.yaml ./pnpm-workspace.yaml
 RUN pnpm fetch
+
 
 # Copy over manifests
 # Workspace root
