@@ -14,7 +14,7 @@ Trying out OpenMLS + Rust + WebAssembly + SolidJS
 - Optimizations
   - A lot of work and not worth it at the moment
   - Continuously profile size
-  - Record size changes over time to detect degredations
+  - Record size changes over time to detect degradations
 
 # Requirements
 
