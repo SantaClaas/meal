@@ -1,5 +1,7 @@
 @import "tailwindcss";
-@plugin "../material-tailwind.plugin.js";
+@plugin "@claas.dev/material-tailwind" {
+  source-color: "#0f172a";
+}
 @plugin "@tailwindcss/forms";
 
 @layer base {
