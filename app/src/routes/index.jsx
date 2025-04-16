@@ -38,7 +38,7 @@ function ChatList() {
               setApp("name", null);
               setApp("isOnboarded", false);
             }}
-            class="p-3 text-light-on-surface-variant dark:text-dark-on-surface-variant"
+            class="p-3 text-on-surface-variant"
           >
             <span class="sr-only">sign out</span>
             <svg
@@ -54,33 +54,30 @@ function ChatList() {
           </button>
         }
       />
-      <ol class="col-start-1 grid grid-cols-[auto_1fr_auto] sm:rounded-medium scrollbar-none overflow-y-scroll">
+      <ol class="col-start-1 grid grid-cols-[auto_1fr_auto] scrollbar-none overflow-y-scroll">
         <For each={new Array(100)}>
           {() => (
             <li class="contents">
               <a
                 href="#"
                 draggable="false"
-                class="ps-4 pe-6 grid grid-cols-subgrid col-span-3 gap-x-4 py-2 items-center bg-light-surface dark:bg-dark-surface sm:bg-light-surface-container sm:dark:bg-dark-surface-container group
+                class="ps-4 pe-6 grid grid-cols-subgrid col-span-3 gap-x-4 py-2 items-center bg-surface group
           hover:bg-[color-mix(in_srgb,theme(colors.light.surface),theme(colors.light.on-surface)_8%)]
           hover:dark:bg-[color-mix(in_srgb,theme(colors.dark.surface),theme(colors.dark.on-surface)_8%)]
-          focus-visible:outline-[3px] focus-visible:z-[1] focus-visible:outline-offset-0 focus-visible:outline-light-secondary dark:focus-visible:outline-dark-secondary
+          focus-visible:outline-[3px] focus-visible:z-[1] focus-visible:outline-offset-0 focus-visible:outline-secondary
           focus-visible:bg-[color-mix(in_srgb,theme(colors.light.surface),theme(colors.light.on-surface)_10%)]
           focus-visible:dark:bg-[color-mix(in_srgb,theme(colors.dark.surface),theme(colors.dark.on-surface)_10%)]
           active:bg-[color-mix(in_srgb,theme(colors.light.surface),theme(colors.light.on-surface)_10%)]
           active:dark:bg-[color-mix(in_srgb,theme(colors.dark.surface),theme(colors.dark.on-surface)_10%)]"
               >
-                <span class="size-10 bg-light-surface-container-high dark:bg-dark-surface-container-high rounded-full text-center content-center text-title-md text-light-on-surface dark:text-dark-on-surface">
+                <span class="size-10 bg-surface-container-high rounded-full text-center content-center text-title-md text-on-surface">
                   C
                 </span>
                 <hgroup class="min-h-14 content-center">
-                  <h2 class="text-light-on-surface dark:text-dark-on-surface text-body-lg">
-                    Headline
-                  </h2>
+                  <h2 class="text-on-surface text-body-lg">Headline</h2>
                   <p
-                    class="text-light-on-surface-variant dark:text-dark-on-surface-variant line-clamp-1 text-ellipsis text-body-md group-hover:text-light-on-surface dark:group-hover:text-dark-on-surface
-              group-focus-visible:text-light-on-surface dark:group-focus-visible:text-dark-on-surface
-              group-active:text-light-on-surface dark:group-active:text-dark-on-surface
+                    class="text-on-surface-variant line-clamp-1 text-ellipsis text-body-md group-hover:text-on-surface
+              group-focus-visible:text-on-surface group-active:text-on-surface
  "
                   >
                     Supporting text that is long enough to fill up multiple
@@ -88,9 +85,7 @@ function ChatList() {
                     {/* Supporting text */}
                   </p>
                 </hgroup>
-                <p class="text-light-on-surface-variant dark:text-dark-on-surface-variant text-label-sm">
-                  Now
-                </p>
+                <p class="text-on-surface-variant text-label-sm">Now</p>
               </a>
             </li>
           )}
@@ -124,9 +119,9 @@ export default function Index(properties) {
         </main> */}
         <div
           data-name="mobile-app-shell"
-          class="sm:aspect-[9/16] sm:max-h-170 h-full bg-red-400 overflow-scroll border rounded-3xl border-outline"
+          class="sm:aspect-[9/16] sm:max-h-170 h-full overflow-scroll border rounded-3xl border-outline"
         >
-          <main class="bg-red-400 grid">
+          <main class="grid">
             <ChatList />
           </main>
         </div>

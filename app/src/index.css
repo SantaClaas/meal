@@ -9,7 +9,7 @@
   /* surface container color is the background of the page to have it as background for the navigation elements */
   :root {
     color-scheme: light dark;
-    @apply bg-light-surface-container dark:bg-dark-surface-container text-light-on-surface dark:text-dark-on-surface caret-light-primary dark:caret-dark-primary accent-light-primary dark:accent-dark-primary selection:bg-light-primary dark:selection:bg-dark-primary selection:text-light-on-primary dark:selection:text-dark-on-primary overscroll-none;
+    @apply bg-surface-container text-on-surface caret-primary accent-primary selection:bg-primary selection:text-on-primary overscroll-none;
   }
 
   @property --pane-1-width {
@@ -28,6 +28,14 @@
   @supports selector(::-webkit-scrollbar) {
     .scrollbar-none::-webkit-scrollbar {
       display: none;
+    }
+  }
+
+  @supports (container-type: scroll-state) {
+    .stuck-top-app-bar {
+      @container scroll-state(stuck: top) {
+        @apply bg-surface-container;
+      }
     }
   }
 }
