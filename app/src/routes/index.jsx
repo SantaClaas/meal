@@ -117,14 +117,10 @@ export default function Index(properties) {
             {properties.children}
           </article>
         </main> */}
-        <div
-          data-name="mobile-app-shell"
-          class="sm:aspect-[9/16] sm:max-h-170 h-full overflow-scroll border rounded-3xl border-outline"
-        >
-          <main class="grid">
-            <ChatList />
-          </main>
-        </div>
+
+        <main class="grid">
+          <ChatList />
+        </main>
       </>
     </Show>
   );
