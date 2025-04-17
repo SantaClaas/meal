@@ -27,9 +27,10 @@ function FloatingActionButton() {
 }
 
 function ChatList() {
-  const [_, setApp] = useAppContext();
+  const [app, setApp] = useAppContext();
+
   return (
-    <aside class="grid grid-rows-subgrid row-span-2 isolate overscroll-contain">
+    <section class="grid isolate overscroll-contain">
       <TopAppBar
         header="Melt"
         trailingAction={
@@ -55,13 +56,19 @@ function ChatList() {
         }
       />
       <ol class="col-start-1 grid grid-cols-[auto_1fr_auto] scrollbar-none overflow-y-scroll">
-        <For each={new Array(100)}>
-          {() => (
-            <li class="contents">
-              <a
-                href="#"
-                draggable="false"
-                class="ps-4 pe-6 grid grid-cols-subgrid col-span-3 gap-x-4 py-2 items-center bg-surface group
+        <For each={app.groups}>
+          {(group) => {
+            const lastMessage = () =>
+              group.messages.length > 0
+                ? group.messages[group.messages.length - 1]
+                : undefined;
+
+            return (
+              <li class="contents">
+                <a
+                  href={`/chat/${group.id}`}
+                  draggable="false"
+                  class="ps-4 pe-6 grid grid-cols-subgrid col-span-3 gap-x-4 py-2 items-center bg-surface group
           hover:bg-[color-mix(in_srgb,theme(colors.light.surface),theme(colors.light.on-surface)_8%)]
           hover:dark:bg-[color-mix(in_srgb,theme(colors.dark.surface),theme(colors.dark.on-surface)_8%)]
           focus-visible:outline-[3px] focus-visible:z-[1] focus-visible:outline-offset-0 focus-visible:outline-secondary
@@ -69,29 +76,39 @@ function ChatList() {
           focus-visible:dark:bg-[color-mix(in_srgb,theme(colors.dark.surface),theme(colors.dark.on-surface)_10%)]
           active:bg-[color-mix(in_srgb,theme(colors.light.surface),theme(colors.light.on-surface)_10%)]
           active:dark:bg-[color-mix(in_srgb,theme(colors.dark.surface),theme(colors.dark.on-surface)_10%)]"
-              >
-                <span class="size-10 bg-surface-container-high rounded-full text-center content-center text-title-md text-on-surface">
-                  C
-                </span>
-                <hgroup class="min-h-14 content-center">
-                  <h2 class="text-on-surface text-body-lg">Headline</h2>
-                  <p
-                    class="text-on-surface-variant line-clamp-1 text-ellipsis text-body-md group-hover:text-on-surface
-              group-focus-visible:text-on-surface group-active:text-on-surface
- "
-                  >
-                    Supporting text that is long enough to fill up multiple
-                    lines
-                    {/* Supporting text */}
-                  </p>
-                </hgroup>
-                <p class="text-on-surface-variant text-label-sm">Now</p>
-              </a>
-            </li>
-          )}
+                >
+                  <span class="size-10 bg-surface-container-high rounded-full text-center content-center text-title-md text-on-surface">
+                    {group.friend.name?.[0].toUpperCase() ?? "🥷"}
+                  </span>
+                  <hgroup class="min-h-14 content-center">
+                    <h2 class="text-on-surface text-body-lg">
+                      {/* TODO add info button that they hid their name */}
+                      {group.friend.name ?? "Unknown"}
+                    </h2>
+                    <Show when={lastMessage()}>
+                      {
+                        /** @type {(item: Accessor<string>) => JSX.Element} */ (
+                          message
+                        ) => (
+                          <p
+                            class="text-on-surface-variant line-clamp-1 text-ellipsis text-body-md group-hover:text-on-surface
+            group-focus-visible:text-on-surface group-active:text-on-surface
+"
+                          >
+                            {message()}
+                          </p>
+                        )
+                      }
+                    </Show>
+                  </hgroup>
+                  <p class="text-on-surface-variant text-label-sm">{}</p>
+                </a>
+              </li>
+            );
+          }}
         </For>
       </ol>
-    </aside>
+    </section>
   );
 }
 /** @param {ParentProps} properties */
@@ -118,7 +135,7 @@ export default function Index(properties) {
           </article>
         </main> */}
 
-        <main class="grid">
+        <main class="grid grid-rows-[auto_1fr] h-full w-full bg-surface">
           <ChatList />
           <FloatingActionButton />
         </main>

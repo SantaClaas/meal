@@ -4,19 +4,19 @@ import { useAppContext, messagesUrl } from "../components/AppContext";
 //@ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
 /** @import { JSX } from "solid-js" */
 
-// TODO take this inspiriation https://firebasestorage.googleapis.com/v0/b/design-spec/o/projects%2Fgoogle-material-3%2Fimages%2Fly7219l1-1.png?alt=media&token=67ff316b-7515-4e9f-9971-4e580290b1f2
+// TODO take this inspiration https://firebasestorage.googleapis.com/v0/b/design-spec/o/projects%2Fgoogle-material-3%2Fimages%2Fly7219l1-1.png?alt=media&token=67ff316b-7515-4e9f-9971-4e580290b1f2
 // from https://m3.material.io/foundations/layout/applying-layout/compact#283b4432-e3ee-46df-aa66-9ec87965c6ef
 export default function Chat() {
-  const paramters = useParams();
+  const parameters = useParams();
 
-  if (paramters.groupId === undefined) {
+  if (parameters.groupId === undefined) {
     return <Navigate href="/" />;
   }
 
   const [app, setApp] = useAppContext();
   //TODO this will not work when group indices change due to change of ordering and new groups being added
   const groupIndex = createMemo(() =>
-    app.groups.findIndex((group) => group.id === paramters.groupId)
+    app.groups.findIndex((group) => group.id === parameters.groupId)
   );
 
   if (groupIndex() < 0) {
@@ -64,12 +64,13 @@ export default function Chat() {
 
   return (
     <>
+      <a href="/">Back</a>
       <h1>Chat</h1>
       <table>
         <tbody>
           <tr>
             <td>Group id</td>
-            <td>{paramters.groupId}</td>
+            <td>{parameters.groupId}</td>
           </tr>
           <tr>
             <td>Friend client id</td>
