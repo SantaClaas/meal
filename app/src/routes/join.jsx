@@ -13,15 +13,15 @@ import { decode_key_package } from "../../../core/pkg";
  * @returns {JSX.Element}
  */
 export default function Join() {
-  const paramters = useParams();
+  const parameters = useParams();
 
-  if (!paramters.package) {
+  if (!parameters.package) {
     return <Navigate href="/" />;
   }
 
   const [app, setApp] = useAppContext();
 
-  const [keyPackage] = createResource(paramters.package, decode_key_package);
+  const [keyPackage] = createResource(parameters.package, decode_key_package);
 
   const navigate = useNavigate();
   /** @param {Parameters<JSX.EventHandler<HTMLFormElement, SubmitEvent>>[0]} event */
@@ -80,7 +80,7 @@ export default function Join() {
 
       <Switch>
         <Match when={keyPackage.loading}>
-          {/* TODO loading shimmer/sceleton */}
+          {/* TODO loading shimmer/skeleton */}
           <p>Loading...</p>
         </Match>
 

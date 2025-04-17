@@ -7,7 +7,7 @@ import { createStore } from "solid-js/store";
  * @import { ParentProps, Context, EffectFunction } from "solid-js"
  * @import { Friend } from "../../../core/pkg"
  * @typedef {{id: string, friend: Friend, messages: string[]}} Group
- * TODO these need to be derivated from the rust types which should be automated
+ * TODO these need to be derived from the rust types which should be automated
  * @typedef {{type: "Welcome", group_id: string, friend: Friend}} Welcome
  * @typedef {{type: "Private", group_id: string, message: string}} Private
  * @typedef {Welcome | Private} Message
@@ -115,9 +115,9 @@ function receiveMessage(event) {
       //TODO sort groups by last message time
       // Using linear search because:
       // 1. Groups that often receive messages are displayed at the top of the list which reduces search time
-      // 2. An average user has few active groups that reguarly receive messages
+      // 2. An average user has few active groups that regularly receive messages
 
-      // Assuming groups that often receive messages are reguarly used
+      // Assuming groups that often receive messages are regularly used
       // this means they are at the top of the list.
 
       const groupIndex = app.groups.findIndex(

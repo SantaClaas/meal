@@ -30,12 +30,17 @@
       display: none;
     }
   }
+}
 
+/* Following the existing container query classes or you can use @container-[scroll-state] */
+.\@container-scroll {
+  container-type: scroll-state;
+}
+
+@custom-variant @stuck-top {
   @supports (container-type: scroll-state) {
-    .stuck-top-app-bar {
-      @container scroll-state(stuck: top) {
-        @apply bg-surface-container;
-      }
+    @container scroll-state(stuck: top) {
+      @slot;
     }
   }
 }

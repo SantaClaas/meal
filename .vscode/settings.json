@@ -10,8 +10,10 @@
     "popovertarget",
     "popovertargetaction",
     "pumpe",
+    "qrcode",
     "reqwest",
     "santaclaas",
+    "solidjs",
     "thiserror"
   ]
 }

@@ -1,29 +1,29 @@
-import { createEffect, createSignal, For, onMount, Show } from "solid-js";
+import { For, Show } from "solid-js";
 import Onboarding from "../components/Onboarding";
 import { useAppContext } from "../components/AppContext";
 import TopAppBar from "../components/TopAppBar";
 //@ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
 // https://devblogs.microsoft.com/typescript/announcing-typescript-5-5/#the-jsdoc-@import-tag
 /** @import { Signal, JSX, Accessor, ParentProps } from "solid-js" */
-function getPane1Width() {
-  let storedWidth = localStorage.getItem("--pane-1-width");
-  if (storedWidth !== null) {
-    const value = parseInt(storedWidth);
-    if (!isNaN(value)) {
-      return value;
-    }
-  }
 
-  // Get from CSS as default is different for different screen sizes
-  storedWidth = getComputedStyle(document.body).getPropertyValue(
-    "--pane-1-width"
+function FloatingActionButton() {
+  return (
+    <a
+      href="/invite"
+      class="size-14 content-center justify-items-center rounded-medium bg-primary text-on-primary outline-offset-4 focus-within:outline-primary focus:outline-none right-4 bottom-4 absolute"
+    >
+      <span class="sr-only">New chat</span>
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        height="24px"
+        viewBox="0 -960 960 960"
+        width="24px"
+        fill="#e8eaed"
+      >
+        <path d="M240-400h320v-80H240v80Zm0-120h480v-80H240v80Zm0-120h480v-80H240v80ZM80-80v-720q0-33 23.5-56.5T160-880h640q33 0 56.5 23.5T880-800v480q0 33-23.5 56.5T800-240H240L80-80Zm126-240h594v-480H160v525l46-45Zm-46 0v-480 480Z" />
+      </svg>
+    </a>
   );
-  if (storedWidth === null) return null;
-
-  // parseInt ignores the trailing 'px' in a string like "360px"
-  const value = parseInt(storedWidth);
-  localStorage.setItem("--pane-1-width", value.toString());
-  return value;
 }
 
 function ChatList() {
@@ -120,6 +120,7 @@ export default function Index(properties) {
 
         <main class="grid">
           <ChatList />
+          <FloatingActionButton />
         </main>
       </>
     </Show>
