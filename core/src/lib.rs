@@ -8,6 +8,7 @@ use openmls_basic_credential::SignatureKeyPair;
 use openmls_rust_crypto::OpenMlsRustCrypto;
 use openmls_traits::types::Ciphersuite;
 use serde::{Deserialize, Serialize};
+use time::OffsetDateTime;
 use tls_codec::Serialize as _;
 use wasm_bindgen::prelude::*;
 
@@ -51,11 +52,25 @@ pub struct Friend {
     pub name: Option<String>,
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+struct MessageContent {
+    /// The time the sender said they supposedly sent the message
+    #[serde(with = "time::serde::iso8601")]
+    sent: OffsetDateTime,
+    text: String,
+}
+
 #[derive(serde::Serialize)]
 #[serde(tag = "type")]
 enum Message {
-    Private { group_id: String, message: String },
-    Welcome { group_id: String, friend: Friend },
+    Private {
+        group_id: String,
+        content: MessageContent,
+    },
+    Welcome {
+        group_id: String,
+        friend: Friend,
+    },
 }
 
 fn encode_application_id(mut id: String, name: &Option<String>) -> Extensions {
@@ -84,7 +99,7 @@ enum ApplicationMessage {
     /// to be involved as little as possible. This also makes the implementation less reliant on the delivery service.
     ///
     /// It is also not possible to tie the welcome to the introduction, because nesting the welcome in the introduction
-    /// would lead to them arriving out of order and it seems that the application message is not decryptable when the
+    /// would lead to them arriving out of order and it seems that the application message is not decrypt-able when the
     /// welcome hasn't been processed yet.
     /// </details>
     Introduction {
@@ -194,7 +209,7 @@ impl Client {
 
     /// Creates a group using the package decoded in when reading the invite.
     /// Returns the serialized welcome message.
-    /// Don't use "package" as a paramter name as it is reserved in JavaScript and will make
+    /// Don't use "package" as a parameter name as it is reserved in JavaScript and will make
     /// the wasm bindgen code fail.
     pub fn invite(&mut self, group_id: &str, key_package: DecodedPackage) -> Vec<u8> {
         let bytes = BASE64_URL_SAFE_NO_PAD.decode(group_id).unwrap();
@@ -206,7 +221,7 @@ impl Client {
         };
 
         //TODO support multi user groups
-        // We don't need the out message bedcause there is no other group members
+        // We don't need the out message because there is no other group members
         // that need to be "informed" of the change (the commit message)
         let (_out_message, welcome, _group_info) = group
             .add_members(provider, &self.user.signature_key, &[package])
@@ -234,13 +249,16 @@ impl Client {
         TlsSliceU16(&vector).tls_serialize_detached().unwrap()
     }
 
-    pub fn send_message(&mut self, group_id: String, message: String) -> Box<[u8]> {
+    pub fn send_message(&mut self, group_id: String, message: JsValue) -> Box<[u8]> {
+        let message: MessageContent = serde_wasm_bindgen::from_value(message).unwrap();
+        let message = postcard::to_allocvec(&message).unwrap();
+
         let bytes = BASE64_URL_SAFE_NO_PAD.decode(group_id).unwrap();
         let id = GroupId::from_slice(&bytes);
         let group = self.groups.get_mut(&id).unwrap();
         let provider = provider();
         let message = group
-            .create_message(provider, &self.user.signature_key, message.as_bytes())
+            .create_message(provider, &self.user.signature_key, &message)
             .unwrap();
 
         // We can batch send messages so we need to wrap it in a collection
@@ -265,12 +283,13 @@ impl Client {
             todo!("Handle processed message content");
         };
 
-        let message = String::from_utf8(content.into_bytes()).unwrap();
+        let content = postcard::from_bytes(&content.into_bytes()).unwrap();
+        // let message = String::from_utf8(content.into_bytes()).unwrap();
         let js_group_id = BASE64_URL_SAFE_NO_PAD.encode(group.group_id().as_slice());
 
         Message::Private {
             group_id: js_group_id,
-            message,
+            content,
         }
     }
 

@@ -1,7 +1,10 @@
 {
   "cSpell.words": [
+    "allocvec",
     "askama",
+    "bindgen",
     "bitwarden",
+    "cdylib",
     "cgroupv",
     "Ciphersuite",
     "crun",
@@ -16,6 +19,7 @@
     "qrcode",
     "reqwest",
     "santaclaas",
+    "serde",
     "solidjs",
     "thiserror"
   ]

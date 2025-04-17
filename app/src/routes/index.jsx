@@ -5,6 +5,8 @@ import TopAppBar from "../components/TopAppBar";
 //@ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
 // https://devblogs.microsoft.com/typescript/announcing-typescript-5-5/#the-jsdoc-@import-tag
 /** @import { Signal, JSX, Accessor, ParentProps } from "solid-js" */
+//@ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
+/** @import { Message } from "../components/AppContext" */
 
 function FloatingActionButton() {
   return (
@@ -87,7 +89,7 @@ function ChatList() {
                     </h2>
                     <Show when={lastMessage()}>
                       {
-                        /** @type {(item: Accessor<string>) => JSX.Element} */ (
+                        /** @type {(item: Accessor<Message>) => JSX.Element} */ (
                           message
                         ) => (
                           <p
@@ -95,13 +97,41 @@ function ChatList() {
             group-focus-visible:text-on-surface group-active:text-on-surface
 "
                           >
-                            {message()}
+                            {message().text}
                           </p>
                         )
                       }
                     </Show>
                   </hgroup>
-                  <p class="text-on-surface-variant text-label-sm">{}</p>
+                  <Show when={lastMessage()}>
+                    {
+                      /** @type {(item: Accessor<Message>) => JSX.Element} */ (
+                        message
+                      ) => {
+                        const dateString = message().sent.toLocaleDateString();
+                        const isToday =
+                          dateString === new Date().toLocaleDateString();
+
+                        console.debug(
+                          "Is today?",
+                          isToday,
+                          dateString,
+                          message().sent.toLocaleTimeString()
+                        );
+
+                        return (
+                          //TODO format date correctly for datetime attribute
+                          <time class="text-on-surface-variant text-label-sm">
+                            {isToday
+                              ? message().sent.toLocaleTimeString(undefined, {
+                                  timeStyle: "short",
+                                })
+                              : dateString}
+                          </time>
+                        );
+                      }
+                    }
+                  </Show>
                 </a>
               </li>
             );
@@ -111,8 +141,8 @@ function ChatList() {
     </section>
   );
 }
-/** @param {ParentProps} properties */
-export default function Index(properties) {
+/** @param {ParentProps} _properties */
+export default function Index(_properties) {
   const [app, setApp] = useAppContext();
 
   return (

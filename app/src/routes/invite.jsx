@@ -89,7 +89,7 @@ export default function Invite() {
     }
   );
 
-  const [app, setApp] = useAppContext();
+  const [app] = useAppContext();
   /** @type {HTMLDialogElement | undefined} */
   let settingsDialog;
   /** @type { HTMLDivElement | undefined} */

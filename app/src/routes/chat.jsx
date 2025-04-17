@@ -3,6 +3,8 @@ import { createMemo, For, Show } from "solid-js";
 import { useAppContext, messagesUrl } from "../components/AppContext";
 //@ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
 /** @import { JSX } from "solid-js" */
+//@ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
+/** @import { Message } from "../components/AppContext" */
 
 // TODO take this inspiration https://firebasestorage.googleapis.com/v0/b/design-spec/o/projects%2Fgoogle-material-3%2Fimages%2Fly7219l1-1.png?alt=media&token=67ff316b-7515-4e9f-9971-4e580290b1f2
 // from https://m3.material.io/foundations/layout/applying-layout/compact#283b4432-e3ee-46df-aa66-9ec87965c6ef
@@ -37,15 +39,27 @@ export default function Chat() {
   /** @param {Parameters<JSX.EventHandler<HTMLFormElement, SubmitEvent>>[0]} event*/
   async function handleSend(event) {
     event.preventDefault();
-    const message = /** @type {HTMLInputElement} */ (
+    const messageText = /** @type {HTMLInputElement} */ (
       event.currentTarget.message
     ).value;
 
     event.currentTarget.reset();
 
+    /** @type {Message} */
+    const message = {
+      sent: new Date(),
+      text: messageText,
+    };
+
     setApp("groups", groupIndex(), "messages", messages().length, message);
     //TODO Should use SolidJS signal system to make sending messages an effect of adding messages to the chat
-    const body = app.client.send_message(group().id, message);
+    const sendDate = new Date().toISOString();
+    const messageContent = {
+      sent: sendDate,
+      text: messageText,
+    };
+
+    const body = app.client.send_message(group().id, messageContent);
 
     const url = new URL(group().friend.id, messagesUrl);
     const request = new Request(url, {
@@ -96,7 +110,9 @@ export default function Chat() {
           <For each={messages()}>
             {(message) => (
               <li>
-                <p>{message}</p>
+                <p>{message.text}</p>
+                {/*TODO format date correctly for datetime attribute*/}
+                <time>{message.sent.toLocaleTimeString()}</time>
               </li>
             )}
           </For>

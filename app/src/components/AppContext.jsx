@@ -6,11 +6,13 @@ import { createStore } from "solid-js/store";
 /**
  * @import { ParentProps, Context, EffectFunction } from "solid-js"
  * @import { Friend } from "../../../core/pkg"
- * @typedef {{id: string, friend: Friend, messages: string[]}} Group
+ * @typedef {{sent: Date, text: string}} Message
+ * @typedef {{id: string, friend: Friend, messages: Message[]}} Group
  * TODO these need to be derived from the rust types which should be automated
  * @typedef {{type: "Welcome", group_id: string, friend: Friend}} Welcome
- * @typedef {{type: "Private", group_id: string, message: string}} Private
- * @typedef {Welcome | Private} Message
+ * @typedef {{sent: string, text: string}} MessageContent
+ * @typedef {{type: "Private", group_id: string, content: MessageContent}} Private
+ * @typedef {Welcome | Private} ApplicationMessage
  */
 
 const id = localStorage.getItem("id");
@@ -94,7 +96,7 @@ function receiveMessage(event) {
   }
 
   console.debug("Processing message");
-  const message = /** @type {Message} */ (
+  const message = /** @type {ApplicationMessage} */ (
     app.client.process_message(new Uint8Array(event.data))
   );
   console.debug("Processed message", message);
@@ -109,7 +111,12 @@ function receiveMessage(event) {
       });
       break;
     case "Private":
-      console.debug("Received message", message.group_id, message.message);
+      /** @type {Message} */
+      const messageContent = {
+        sent: new Date(message.content.sent),
+        text: message.content.text,
+      };
+      console.debug("Received message", message.group_id, messageContent);
 
       // Get group
       //TODO sort groups by last message time
@@ -124,10 +131,10 @@ function receiveMessage(event) {
         (group) => group.id === message.group_id
       );
 
-      // First time store user. This stuff is whack
+      //TODO avoid new array creation
       setApp("groups", groupIndex, "messages", (messages) => [
         ...messages,
-        message.message,
+        messageContent,
       ]);
       break;
   }
