@@ -112,3 +112,7 @@ c = "job:clippy-all" # comment this to have 'c' run clippy on only the default t
 
 [jobs.delivery-service]
 command = ["cargo", "run", "--package", "delivery-service"]
+need_stdout = true
+background = false
+on_change_strategy = "kill_then_restart"
+watch = ["templates"]
