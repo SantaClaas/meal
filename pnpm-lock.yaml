@@ -16,12 +16,18 @@ importers:
       idb:
         specifier: ^8.0.2
         version: 8.0.2
+      meal-core:
+        specifier: link:../core/pkg
+        version: link:../core/pkg
       qrcode:
         specifier: ^1.5.4
         version: 1.5.4
       solid-js:
         specifier: ^1.9.5
         version: 1.9.5
+      workbox-precaching:
+        specifier: ^7.3.0
+        version: 7.3.0
     devDependencies:
       '@claas.dev/material-tailwind':
         specifier: ^0.6.0
@@ -56,12 +62,6 @@ importers:
       vite-plugin-wasm:
         specifier: ^3.4.1
         version: 3.4.1(vite@6.0.7(@types/node@22.14.1)(jiti@2.4.2)(lightningcss@1.29.2)(terser@5.39.0)(yaml@2.5.1))
-      workbox-build:
-        specifier: ^7.3.0
-        version: 7.3.0(@types/babel__core@7.20.5)
-      workbox-precaching:
-        specifier: ^7.3.0
-        version: 7.3.0
 
   tugboat:
     devDependencies:

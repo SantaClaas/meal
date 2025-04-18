@@ -15,12 +15,14 @@
     "pnpx",
     "popovertarget",
     "popovertargetaction",
+    "precaching",
     "pumpe",
     "qrcode",
     "reqwest",
     "santaclaas",
     "serde",
     "solidjs",
-    "thiserror"
+    "thiserror",
+    "vite"
   ]
 }

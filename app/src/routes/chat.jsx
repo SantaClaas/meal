@@ -1,6 +1,6 @@
 import { Navigate, useParams } from "@solidjs/router";
 import { createMemo, For, Show } from "solid-js";
-import { useAppContext, messagesUrl } from "../components/AppContext";
+import { useAppContext } from "../components/AppContext";
 //@ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
 /** @import { JSX } from "solid-js" */
 //@ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
@@ -52,28 +52,13 @@ export default function Chat() {
     };
 
     setApp("groups", groupIndex(), "messages", messages().length, message);
-    //TODO Should use SolidJS signal system to make sending messages an effect of adding messages to the chat
-    const sendDate = new Date().toISOString();
-    const messageContent = {
-      sent: sendDate,
+    await postMessage({
+      type: "sendMessage",
+      groupId: group().id,
+      friendId: group().friend.id,
+      sent: new Date(),
       text: messageText,
-    };
-
-    const body = app.client.send_message(group().id, messageContent);
-
-    const url = new URL(group().friend.id, messagesUrl);
-    const request = new Request(url, {
-      method: "post",
-      headers: {
-        //https://www.rfc-editor.org/rfc/rfc9420.html#name-the-message-mls-media-type
-        "Content-Type": "message/mls",
-      },
-      body,
     });
-
-    //TODO error handling
-    //TODO retry
-    await fetch(request);
   }
 
   return (

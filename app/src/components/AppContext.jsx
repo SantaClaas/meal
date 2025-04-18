@@ -1,6 +1,5 @@
 import { createContext, createEffect, useContext } from "solid-js";
-//TODO register rust wasm pack package as package in workspace
-import { Client } from "../../../core/pkg";
+import init, { Client } from "meal-core";
 import { createStore } from "solid-js/store";
 
 /**
@@ -18,6 +17,7 @@ import { createStore } from "solid-js/store";
 const id = localStorage.getItem("id");
 const name = localStorage.getItem("name");
 const isOnboarded = localStorage.getItem("isOnboarded") !== null;
+await init();
 const client = new Client(id ?? undefined, name ?? undefined);
 
 // const isLocalhost =
@@ -33,6 +33,9 @@ const [app, setApp] = createStore({
   get id() {
     return client.id;
   },
+  /**
+   * @deprecated Use client through single service worker instance instead
+   */
   client,
   /**
    * @type {Group[]}
