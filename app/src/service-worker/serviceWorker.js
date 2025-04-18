@@ -1,6 +1,6 @@
 import { precacheAndRoute } from "workbox-precaching";
 import { openDB } from "idb";
-import init, { Client } from "meal-core";
+import init, { Client as CoreClient } from "meal-core";
 
 /** @import { Schema } from "./schema" */
 
@@ -28,7 +28,11 @@ async function initializeClient() {
   // Have to use wasm-pack --target web to build the wasm package to get the init function because with the bundler target
   // it is included as a top level await which is not supported by service workers according to the web spec
   await init();
-  const client = new Client(configuration?.clientId, configuration?.user?.name);
+  const client = new CoreClient(
+    configuration?.clientId,
+    configuration?.user?.name
+  );
+
   return client;
 }
 
@@ -43,16 +47,51 @@ const setupClient = initializeClient();
 const messagesUrl = new URL("/messages/", self.location.origin);
 
 /**
+ * Map of ports to browsing contexts
+ * @type {Map<string, WeakRef<MessagePort>>}
+ */
+const ports = new Map();
+// There is no close event to clean up message channels
+// https://github.com/fergald/explainer-messageport-close#proposal
+setTimeout(() => {
+  for (const [id, port] of ports) {
+    if (port.deref() !== undefined) continue;
+
+    console.debug("Cleaning up port", id);
+    ports.delete(id);
+  }
+}, 100_000);
+
+/**
  * @param {MessageEvent<ServiceWorkerRequest>} event
  */
 async function handleMessage(event) {
-  console.debug("Service worker: received message", event.data);
+  console.debug("Service worker: received message", event.data.type);
 
-  const { type, ...data } = event.data;
-  switch (type) {
-    case "sendMessage":
-      console.debug("Service worker: received sendMessage message", event.data);
+  switch (event.data.type) {
+    case "initializePort": {
+      console.debug("Received initializePort");
+      if (event.source === null)
+        throw new Error("Expected message event source to be not null");
 
+      if (!(event.source instanceof Client))
+        throw new Error("Expected message event source to be a client");
+
+      console.debug("DEBUG");
+      const id = event.source.id;
+      const port = event.ports[0];
+      port.addEventListener("message", handleMessage);
+      // ports.set(id, new WeakRef(port));
+      // port.start();
+      port.postMessage(
+        /** @type {InitializePortResponse} */ ({ type: "portInitialized" })
+      );
+
+      console.debug("Posted port initialized");
+
+      return;
+    }
+    case "sendMessage": {
       const client = await setupClient;
       const body = client.send_message(event.data.groupId, {
         sent: event.data.sent.toISOString(),
@@ -72,6 +111,41 @@ async function handleMessage(event) {
       //TODO retry
       await fetch(request);
       return;
+    }
+    case "createInvite": {
+      const client = await setupClient;
+      const encodedInvite = client.create_invite(client.get_name());
+      const inviteUrl = new URL(`/join/${encodedInvite}`, location.origin);
+
+      if (event.source === null)
+        throw new Error(
+          "Expected browser context source to send invite url back to"
+        );
+
+      if (!(event.source instanceof Client))
+        throw new Error("Expected message event source to be a client");
+
+      const portReference = ports.get(event.source.id);
+      if (portReference === undefined)
+        throw new Error(
+          "Expected to find channel for client. Did initialization happen?"
+        );
+
+      const port = portReference.deref();
+      if (port === undefined)
+        throw new Error(
+          "Port was garbage collected but context is still alive"
+        );
+
+      port.postMessage(
+        /** @type {ServiceWorkerResponse} */ ({
+          type: "inviteUrl",
+          inviteUrl: inviteUrl.href,
+        })
+      );
+
+      return;
+    }
   }
 }
 

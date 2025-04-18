@@ -95,14 +95,6 @@ export default function Invite() {
   /** @type { HTMLDivElement | undefined} */
   let snackbar;
 
-  /** @param {string|undefined} name */
-  function createInviteUrl(name) {
-    const encodedInvite = app.client.create_invite(name);
-    return new URL(`/join/${encodedInvite}`, location.origin);
-  }
-
-  const inviteUrl = () => createInviteUrl(app.name ?? undefined);
-
   /** @type {File | undefined} */
   let qrCodeFile;
 
@@ -130,14 +122,16 @@ export default function Invite() {
         "Sharing is not enabled. Expected this function to not be callable"
       );
 
-    await navigator.share(shareTemplate(inviteUrl().href));
+    const inviteUrl = await app.handle.createInvite();
+    await navigator.share(shareTemplate(inviteUrl));
   }
 
   /**
    * Has to be used with click event handler as pointer down opens the popover and pointer up closes it immediately
    */
-  function copyInvite() {
-    navigator.clipboard.writeText(inviteUrl().href);
+  async function copyInvite() {
+    const inviteUrl = await app.handle.createInvite();
+    navigator.clipboard.writeText(inviteUrl);
     snackbar?.showPopover();
 
     // "4-10 seconds based on platform" https://m3.material.io/components/snackbar/guidelines#12145fa5-ada2-4c3b-b2ae-9cdf8ee54ca1
@@ -151,7 +145,10 @@ export default function Invite() {
   createEffect(async () => {
     if (canvas === undefined) return;
 
-    await QRCode.toCanvas(canvas, inviteUrl().href);
+    console.debug("PAINTING");
+    const inviteUrl = await app.handle.createInvite();
+    await QRCode.toCanvas(canvas, inviteUrl);
+    console.debug("PAINTED");
 
     const FILE_TYPE = "image/png";
     canvas.toBlob((blob) => {
