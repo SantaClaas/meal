@@ -14,7 +14,11 @@ export default defineConfig({
       registerType: "autoUpdate",
       devOptions: {
         enabled: true,
+        type: "module",
       },
+      strategies: "injectManifest",
+      srcDir: "./src/service-worker",
+      filename: "serviceWorker.js",
       pwaAssets: {
         image: "./public/logo-04.svg",
       },
