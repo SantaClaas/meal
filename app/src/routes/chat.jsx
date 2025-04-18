@@ -1,6 +1,7 @@
 import { Navigate, useParams } from "@solidjs/router";
 import { createMemo, For, Show } from "solid-js";
 import { useAppContext } from "../components/AppContext";
+import { postMessage } from "../sendMessage";
 //@ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
 /** @import { JSX } from "solid-js" */
 //@ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
@@ -52,6 +53,7 @@ export default function Chat() {
     };
 
     setApp("groups", groupIndex(), "messages", messages().length, message);
+    console.debug("Posting message", message);
     await postMessage({
       type: "sendMessage",
       groupId: group().id,

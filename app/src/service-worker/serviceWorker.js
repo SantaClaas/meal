@@ -48,10 +48,16 @@ const messagesUrl = new URL("/messages/", self.location.origin);
 async function handleMessage(event) {
   console.debug("Service worker: received message", event.data);
 
-  switch (event.data.type) {
+  const { type, ...data } = event.data;
+  switch (type) {
     case "sendMessage":
+      console.debug("Service worker: received sendMessage message", event.data);
+
       const client = await setupClient;
-      const body = client.send_message(event.data.groupId, event.data);
+      const body = client.send_message(event.data.groupId, {
+        sent: event.data.sent.toISOString(),
+        text: event.data.text,
+      });
       const url = new URL(event.data.friendId, messagesUrl);
       const request = new Request(url, {
         method: "post",
