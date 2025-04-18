@@ -2,10 +2,24 @@ import { defineConfig } from "vite";
 import solid from "vite-plugin-solid";
 import wasm from "vite-plugin-wasm";
 import tailwindcss from "@tailwindcss/vite";
+import { VitePWA as vitePwa } from "vite-plugin-pwa";
 /** @import { defineConfig } from "vite"; */
 
 export default defineConfig({
-  plugins: [tailwindcss(), solid(), wasm()],
+  plugins: [
+    tailwindcss(),
+    solid(),
+    wasm(),
+    vitePwa({
+      registerType: "autoUpdate",
+      devOptions: {
+        enabled: true,
+      },
+      pwaAssets: {
+        image: "./public/logo-04.svg",
+      },
+    }),
+  ],
   server: {
     // Using a proxy during development to use vite and the rust delivery service while vite is not needed in production
     proxy: {
