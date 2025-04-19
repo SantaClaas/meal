@@ -49,24 +49,9 @@ const setupClient = initializeClient();
 /** The url for messages endpoint. Don't forget the trailing slash. */
 const messagesUrl = new URL("/messages/", self.location.origin);
 
+const broadcast = new BroadcastChannel("melt");
 /**
- * Map of ports to browsing contexts
- * @type {Map<string, WeakRef<MessagePort>>}
- */
-const ports = new Map();
-// There is no close event to clean up message channels
-// https://github.com/fergald/explainer-messageport-close#proposal
-setTimeout(() => {
-  for (const [id, port] of ports) {
-    if (port.deref() !== undefined) continue;
-
-    console.debug("Cleaning up port", id);
-    ports.delete(id);
-  }
-}, 100_000);
-
-/**
- * @param {MessageEvent<ServiceWorkerRequest>} event
+ * @param {MessageEvent<ServiceWorkerRequest | ServiceWorkerMessage>} event
  */
 async function handleMessage(event) {
   console.debug("Service worker: received message", event.data.type);
@@ -133,6 +118,17 @@ async function handleMessage(event) {
       };
       event.ports[0].postMessage(response);
       return;
+    }
+    case "inviteFromPackage": {
+      // Update name state
+      // Update name in database
+      // Broadcast name update to all contexts
+      // Decode key package
+      // Create group with core
+      // Create group in database
+      // Broadcast group creation to all contexts
+      // Create invite welcome package with core
+      // Send welcome package to friend
     }
   }
 }

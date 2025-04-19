@@ -25,6 +25,7 @@ type CreateInviteResponse = {
 
 /**
  * A message sent to the service worker from a browsing context.
+ * Expects a response. (synchronous)
  */
 type ServiceWorkerRequest =
   | InitializePortRequest
@@ -32,3 +33,14 @@ type ServiceWorkerRequest =
   | CreateInviteRequest;
 
 type ServiceWorkerResponse = InitializePortResponse | CreateInviteResponse;
+
+type InviteFromPackage = {
+  type: "inviteFromPackage";
+  user: {
+    name: string;
+  };
+  package: string;
+};
+
+/** A message that does not expect a response. Fire and forget/async */
+type ServiceWorkerMessage = InviteFromPackage;

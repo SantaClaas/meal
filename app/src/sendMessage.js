@@ -1,6 +1,6 @@
 /**
  *
- * @param {ServiceWorkerRequest} message
+ * @param {ServiceWorkerMessage} message
  */
 export async function sendMessage(message) {
   if (!("serviceWorker" in navigator))
