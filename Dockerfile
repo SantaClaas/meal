@@ -49,7 +49,7 @@ RUN rm core/src/*.rs
 COPY ./core/src ./core/src
 
 # Build the application
-RUN wasm-pack build --release ./core
+RUN wasm-pack build --target web --release ./core
 
 
 
