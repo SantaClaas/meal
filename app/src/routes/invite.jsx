@@ -1,9 +1,10 @@
 import { useNavigate } from "@solidjs/router";
 import { useAppContext } from "../components/AppContext";
-import { createEffect, Show } from "solid-js";
+import { createEffect, createResource, createSignal, Show } from "solid-js";
 //TODO replace with SVG QR-Code solution. Maybe with something custom
 import QRCode from "qrcode";
-/** @import { JSX, EffectFunction, VoidProps } from "solid-js" */
+import { sendRequest } from "../sendMessage";
+/** @import { JSX, EffectFunction, VoidProps, Signal } from "solid-js" */
 
 const FormElement = /** @type {const} */ ({
   IncludeName: "includeName",
@@ -95,43 +96,62 @@ export default function Invite() {
   /** @type { HTMLDivElement | undefined} */
   let snackbar;
 
-  /** @type {File | undefined} */
-  let qrCodeFile;
+  /** @type {Signal<File | undefined>} */
+  const [qrCodeFile, setQrCodeFile] = createSignal();
 
-  /**
-   * @param {string} [url]
-   * @returns {ShareData}
-   */
-  const shareTemplate = (url) => ({
-    title: "Join me on melt",
-    //TODO generate QR code
-    files: qrCodeFile ? [qrCodeFile] : [],
-    text: "\nScan the QR code or follow the link to chat with me on melt",
-    url,
+  const [inviteUrl] = createResource(async () => {
+    /** @type {ServiceWorkerResponse} */
+    const response = await sendRequest({
+      type: "createInvite",
+    });
+    if (response.type !== "inviteUrl")
+      throw new Error("Expected inviteUrl response");
+
+    return response.inviteUrl;
   });
 
+  const shareData = () => {
+    const url = inviteUrl();
+    if (url === undefined) return;
+    const file = qrCodeFile();
+
+    /** @type {ShareData} */
+    const shareDate = {
+      title: "Join me on melt",
+      files: file ? [file] : [],
+      text: "\nScan the QR code or follow the link to chat with me on melt",
+      url,
+    };
+
+    return shareDate;
+  };
+
   // Progressively enhance the invite form
-  const isShareEnabled =
+  const isShareEnabled = () =>
     "share" in navigator &&
     "canShare" in navigator &&
-    navigator.canShare(shareTemplate());
+    navigator.canShare(shareData());
 
   async function shareInvite() {
-    if (!isShareEnabled)
+    if (!isShareEnabled())
       throw new Error(
         "Sharing is not enabled. Expected this function to not be callable"
       );
 
-    const inviteUrl = await app.handle.createInvite();
-    await navigator.share(shareTemplate(inviteUrl));
+    const template = shareData();
+    if (template === undefined) return;
+    await navigator.share(template);
   }
 
   /**
    * Has to be used with click event handler as pointer down opens the popover and pointer up closes it immediately
    */
   async function copyInvite() {
-    const inviteUrl = await app.handle.createInvite();
-    navigator.clipboard.writeText(inviteUrl);
+    const url = inviteUrl();
+    if (url === undefined)
+      throw new Error("Expected invite url to be loaded before copying");
+
+    navigator.clipboard.writeText(url);
     snackbar?.showPopover();
 
     // "4-10 seconds based on platform" https://m3.material.io/components/snackbar/guidelines#12145fa5-ada2-4c3b-b2ae-9cdf8ee54ca1
@@ -143,20 +163,24 @@ export default function Invite() {
   let canvas;
 
   createEffect(async () => {
-    if (canvas === undefined) return;
+    const url = inviteUrl();
+    if (url === undefined || canvas === undefined) return;
 
-    console.debug("PAINTING");
-    const inviteUrl = await app.handle.createInvite();
-    await QRCode.toCanvas(canvas, inviteUrl);
-    console.debug("PAINTED");
+    // Has to be a side effect with this library
+    await QRCode.toCanvas(canvas, url);
 
     const FILE_TYPE = "image/png";
-    canvas.toBlob((blob) => {
-      if (blob === null) return;
-      return (qrCodeFile = new File([blob], "invite-qr-code.png", {
-        type: FILE_TYPE,
-      }));
-    }, FILE_TYPE);
+    /** @type {Blob | null} */
+    const blob = await new Promise((resolve) =>
+      canvas.toBlob(resolve, FILE_TYPE)
+    );
+
+    if (blob === null) return;
+    const file = new File([blob], "invite-qr-code.png", {
+      type: FILE_TYPE,
+    });
+
+    setQrCodeFile(file);
   });
   return (
     <>

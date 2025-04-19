@@ -14,7 +14,7 @@ export async function sendMessage(message) {
 
 /**
  *
- * @param {ServiceWorkerRegistration} message
+ * @param {ServiceWorkerRequest} message
  */
 export async function sendRequest(message) {
   if (!("serviceWorker" in navigator))
@@ -23,5 +23,11 @@ export async function sendRequest(message) {
   const worker = await navigator.serviceWorker.ready;
   // This should not happen as we awaited ready
   if (worker.active === null) throw new Error("No active service worker");
-  worker.active.postMessage(message);
+  const channel = new MessageChannel();
+  const response = new Promise((resolve) => {
+    channel.port1.addEventListener("message", (event) => resolve(event.data));
+  });
+  worker.active.postMessage(message, [channel.port2]);
+  channel.port1.start();
+  return await response;
 }

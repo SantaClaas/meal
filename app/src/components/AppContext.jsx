@@ -14,78 +14,6 @@ import { createStore } from "solid-js/store";
  * @typedef {Welcome | Private} ApplicationMessage
  */
 
-class ChannelHandle {
-  #initialize = this.#initializePort();
-
-  async #initializePort() {
-    if (!("serviceWorker" in navigator))
-      throw new Error("Service worker not supported");
-
-    const worker = await navigator.serviceWorker.ready;
-    // This should not happen as we awaited ready
-    if (worker.active === null) throw new Error("No active service worker");
-
-    const channel = new MessageChannel();
-
-    const response = /** @type {Promise<void>} */ (
-      new Promise((resolve, reject) =>
-        channel.port1.addEventListener(
-          "message",
-          (/** @type {MessageEvent<ServiceWorkerResponse>} */ event) => {
-            console.debug("Received initializePort response", event.data);
-            switch (event.data.type) {
-              case "portInitialized":
-                resolve();
-                return;
-              default:
-                reject(
-                  new Error(
-                    "Expected port initialization response. Received: " +
-                      event.data.type
-                  )
-                );
-                return;
-            }
-          },
-          { once: true }
-        )
-      )
-    );
-
-    worker.active.postMessage({ type: "initializePort" }, [channel.port2]);
-    await response;
-    console.debug("Port initialized");
-    return channel.port1;
-  }
-
-  /**
-   * @param {ServiceWorkerRequest} message
-   */
-  async #postMessage(message) {
-    const port = await this.#initialize;
-    /**
-     * @type {Promise<MessageEvent<ServiceWorkerResponse>>}
-     */
-    const response = new Promise((resolve) => {
-      port.addEventListener("message", resolve, { once: true });
-    });
-    console.debug("Posting message", message);
-    port.postMessage(message);
-    return await response;
-  }
-
-  async createInvite() {
-    const response = await this.#postMessage({
-      type: "createInvite",
-    });
-
-    if (response.data.type !== "inviteUrl")
-      throw new Error("Expected inviteUrl response");
-
-    return response.data.inviteUrl;
-  }
-}
-
 const id = localStorage.getItem("id");
 const name = localStorage.getItem("name");
 const isOnboarded = localStorage.getItem("isOnboarded") !== null;
@@ -110,7 +38,6 @@ const [app, setApp] = createStore({
    * @deprecated Use client through channel and single service worker instance instead
    */
   client,
-  handle: new ChannelHandle(),
   /**
    * @type {Group[]}
    */

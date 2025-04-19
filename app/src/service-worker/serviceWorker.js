@@ -4,6 +4,9 @@ import init, { Client as CoreClient } from "meal-core";
 
 /** @import { Schema } from "./schema" */
 
+// @ts-expect-error
+self.__WB_DISABLE_DEV_LOGS = true;
+
 console.debug("Service worker: environment", process.env.NODE_ENV);
 // @ts-expect-error This variable is replaced by workbox through vite pwa plugin
 precacheAndRoute(self.__WB_MANIFEST);
@@ -77,8 +80,6 @@ async function handleMessage(event) {
       if (!(event.source instanceof Client))
         throw new Error("Expected message event source to be a client");
 
-      console.debug("DEBUG");
-      const id = event.source.id;
       const port = event.ports[0];
       port.addEventListener("message", handleMessage);
       // ports.set(id, new WeakRef(port));
@@ -125,25 +126,12 @@ async function handleMessage(event) {
       if (!(event.source instanceof Client))
         throw new Error("Expected message event source to be a client");
 
-      const portReference = ports.get(event.source.id);
-      if (portReference === undefined)
-        throw new Error(
-          "Expected to find channel for client. Did initialization happen?"
-        );
-
-      const port = portReference.deref();
-      if (port === undefined)
-        throw new Error(
-          "Port was garbage collected but context is still alive"
-        );
-
-      port.postMessage(
-        /** @type {ServiceWorkerResponse} */ ({
-          type: "inviteUrl",
-          inviteUrl: inviteUrl.href,
-        })
-      );
-
+      /** @type {ServiceWorkerResponse} */
+      const response = {
+        type: "inviteUrl",
+        inviteUrl: inviteUrl.href,
+      };
+      event.ports[0].postMessage(response);
       return;
     }
   }
