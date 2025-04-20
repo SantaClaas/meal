@@ -1,29 +1,25 @@
 mod provider;
 
 use core::str;
-use std::{collections::HashMap, sync::OnceLock, vec::IntoIter};
+use std::{collections::HashMap, vec::IntoIter};
 
 use base64::prelude::*;
 use nanoid::nanoid;
 use openmls::prelude::*;
 use openmls_basic_credential::SignatureKeyPair;
-use openmls_rust_crypto::OpenMlsRustCrypto;
 use openmls_traits::types::Ciphersuite;
+use provider::Provider;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use tls_codec::Serialize as _;
 use wasm_bindgen::prelude::*;
+use web_sys::js_sys;
 
 pub(crate) const CIPHERSUITE: Ciphersuite =
     Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 
 /// Shared variable to use for encoding and decoding id
 const ID_LENGTH: usize = 21;
-
-fn provider() -> &'static impl OpenMlsProvider {
-    static INSTANCE: OnceLock<OpenMlsRustCrypto> = OnceLock::new();
-    INSTANCE.get_or_init(OpenMlsRustCrypto::default)
-}
 
 struct User {
     name: Option<String>,
@@ -38,6 +34,7 @@ pub struct Client {
     groups: HashMap<GroupId, MlsGroup>,
     /// Need to be kept for later reference
     key_packages: Vec<KeyPackage>,
+    provider: Provider,
 }
 
 #[wasm_bindgen(getter_with_clone)]
@@ -114,10 +111,10 @@ enum ApplicationMessage {
 #[wasm_bindgen]
 impl Client {
     #[wasm_bindgen(constructor)]
-    pub fn new(id: Option<String>, name: Option<String>) -> Self {
+    pub fn new(id: Option<String>, name: Option<String>, storage_bridge: js_sys::Function) -> Self {
         console_error_panic_hook::set_once();
-        let provider = provider();
 
+        let provider = Provider::new(storage_bridge);
         let client_id = id.unwrap_or_else(|| nanoid!(ID_LENGTH));
 
         //TODO Basic credentials only for tests and demo
@@ -142,6 +139,7 @@ impl Client {
             user,
             groups: HashMap::new(),
             key_packages: Vec::new(),
+            provider,
         }
     }
 
@@ -169,7 +167,7 @@ impl Client {
             .key_package_extensions(extensions)
             .build(
                 CIPHERSUITE,
-                provider(),
+                &self.provider,
                 &self.user.signature_key,
                 self.user.credential.clone(),
             )
@@ -184,14 +182,13 @@ impl Client {
     }
 
     pub fn create_group(&mut self) -> String {
-        let provider = provider();
         let group = MlsGroup::builder()
             .use_ratchet_tree_extension(true)
             // //TODO should we enforce usage of application id in the capabilities?
             // .with_leaf_node_extensions(encode_application_id(self.id.clone(), &self.user.name))
             // .unwrap()
             .build(
-                provider,
+                &self.provider,
                 &self.user.signature_key,
                 self.user.credential.clone(),
             )
@@ -217,7 +214,6 @@ impl Client {
         let bytes = BASE64_URL_SAFE_NO_PAD.decode(group_id).unwrap();
         let group_id = GroupId::from_slice(&bytes);
         let package = key_package.key_package;
-        let provider = provider();
         let Some(group) = self.groups.get_mut(&group_id) else {
             todo!("Group does not exist");
         };
@@ -226,11 +222,11 @@ impl Client {
         // We don't need the out message because there is no other group members
         // that need to be "informed" of the change (the commit message)
         let (_out_message, welcome, _group_info) = group
-            .add_members(provider, &self.user.signature_key, &[package])
+            .add_members(&self.provider, &self.user.signature_key, &[package])
             .unwrap();
 
         // Process it on our end
-        group.merge_pending_commit(provider).unwrap();
+        group.merge_pending_commit(&self.provider).unwrap();
 
         // Create introduction message as welcome does not include enough information that are needed on the application layer
         let introduction = ApplicationMessage::Introduction {
@@ -239,7 +235,7 @@ impl Client {
         };
         let data = postcard::to_allocvec(&introduction).unwrap();
         let message = group
-            .create_message(provider, &self.user.signature_key, &data)
+            .create_message(&self.provider, &self.user.signature_key, &data)
             .unwrap();
 
         //TODO the introduction has to be sent to all group members when we support multi user groups
@@ -258,9 +254,8 @@ impl Client {
         let bytes = BASE64_URL_SAFE_NO_PAD.decode(group_id).unwrap();
         let id = GroupId::from_slice(&bytes);
         let group = self.groups.get_mut(&id).unwrap();
-        let provider = provider();
         let message = group
-            .create_message(provider, &self.user.signature_key, &message)
+            .create_message(&self.provider, &self.user.signature_key, &message)
             .unwrap();
 
         // We can batch send messages so we need to wrap it in a collection
@@ -277,7 +272,7 @@ impl Client {
             todo!("Group does not exist");
         };
 
-        let Ok(message) = group.process_message(provider(), message) else {
+        let Ok(message) = group.process_message(&self.provider, message) else {
             todo!("Message processing error");
         };
 
@@ -299,15 +294,15 @@ impl Client {
         let introduction = rest.next().unwrap();
 
         // Step 1: Process welcome
-        let provider = provider();
         let configuration = MlsGroupJoinConfig::builder()
             .use_ratchet_tree_extension(true)
             .build();
 
-        let mut group = StagedWelcome::new_from_welcome(provider, &configuration, welcome, None)
-            .unwrap()
-            .into_group(provider)
-            .unwrap();
+        let mut group =
+            StagedWelcome::new_from_welcome(&self.provider, &configuration, welcome, None)
+                .unwrap()
+                .into_group(&self.provider)
+                .unwrap();
 
         // Step 2: Process introduction
         let MlsMessageBodyIn::PrivateMessage(introduction) = introduction.extract() else {
@@ -315,7 +310,7 @@ impl Client {
         };
 
         // Extract introduction application message with new group now
-        let introduction = group.process_message(provider, introduction).unwrap();
+        let introduction = group.process_message(&self.provider, introduction).unwrap();
         let ProcessedMessageContent::ApplicationMessage(content) = introduction.into_content()
         else {
             todo!("Handle processed message content");
@@ -353,38 +348,37 @@ impl Client {
 
         serde_wasm_bindgen::to_value(&value).unwrap()
     }
-}
 
-#[wasm_bindgen]
-pub fn decode_key_package(encoded: &str) -> DecodedPackage {
-    let data = BASE64_URL_SAFE_NO_PAD.decode(encoded).unwrap();
-    // let package = KeyPackageIn::tls_deserialize_exact_bytes(&data).unwrap();
-    let package: KeyPackageIn = postcard::from_bytes(&data).expect("Expected valid key package");
-    let provider = provider();
+    pub fn decode_key_package(&self, encoded: &str) -> DecodedPackage {
+        let data = BASE64_URL_SAFE_NO_PAD.decode(encoded).unwrap();
+        // let package = KeyPackageIn::tls_deserialize_exact_bytes(&data).unwrap();
+        let package: KeyPackageIn =
+            postcard::from_bytes(&data).expect("Expected valid key package");
 
-    let validated = package
-        .validate(provider.crypto(), ProtocolVersion::Mls10)
-        .unwrap();
+        let validated = package
+            .validate(self.provider.crypto(), ProtocolVersion::Mls10)
+            .unwrap();
 
-    let Some(mut id) = validated.extensions().application_id().map(|id| {
-        str::from_utf8(id.as_slice())
-            .unwrap_or_else(|_| todo!("Handle id not utf8"))
-            .to_owned()
-    }) else {
-        todo!("No application id provided. Can not contact user")
-    };
+        let Some(mut id) = validated.extensions().application_id().map(|id| {
+            str::from_utf8(id.as_slice())
+                .unwrap_or_else(|_| todo!("Handle id not utf8"))
+                .to_owned()
+        }) else {
+            todo!("No application id provided. Can not contact user")
+        };
 
-    let friend_name = if id.len() > ID_LENGTH {
-        Some(id.split_off(ID_LENGTH))
-    } else {
-        None
-    };
+        let friend_name = if id.len() > ID_LENGTH {
+            Some(id.split_off(ID_LENGTH))
+        } else {
+            None
+        };
 
-    DecodedPackage {
-        friend: Friend {
-            id,
-            name: friend_name,
-        },
-        key_package: validated,
+        DecodedPackage {
+            friend: Friend {
+                id,
+                name: friend_name,
+            },
+            key_package: validated,
+        }
     }
 }

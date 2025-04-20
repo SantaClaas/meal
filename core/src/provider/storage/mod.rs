@@ -680,7 +680,7 @@ impl openmls_traits::storage::StorageProvider<VERSION> for Provider {
         epoch: &EpochKey,
         leaf_index: u32,
     ) -> Result<Vec<HpkeKeyPair>, Self::Error> {
-        let instruction = serde_wasm_bindgen::to_value(&Operation::ReadEncryptionKeyPair)?;
+        let instruction = serde_wasm_bindgen::to_value(&Operation::ReadEncryptionEpochKeyPairs)?;
 
         let group_id = serde_wasm_bindgen::to_value(group_id)?;
         let epoch = serde_wasm_bindgen::to_value(epoch)?;
