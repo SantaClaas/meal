@@ -1,3 +1,5 @@
+mod provider;
+
 use core::str;
 use std::{collections::HashMap, sync::OnceLock, vec::IntoIter};
 
