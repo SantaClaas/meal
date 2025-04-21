@@ -1,64 +1,16 @@
 use std::collections::HashSet;
 
 use base64::{Engine, prelude::BASE64_URL_SAFE_NO_PAD};
-use openmls::{group, prelude::group_info};
-use openmls_traits::storage::Key;
 use wasm_bindgen::JsValue;
 
-/// From [PitaJ on stackoverflow](https://stackoverflow.com/a/74493461)
-macro_rules! path {
-    (/) => {
-        String::from("/")
-    };
-    (/ $($input:tt)*) => {
-        path!(@munch { / $($input)* } -> () : ())
-    };
-    ($part:literal $(/)*) => {
-        String::from($part)
-    };
-    ($part:literal $($input:tt)*) => {
-        path!(@munch { $($input)* } -> ("{}") : ($part))
-    };
-
-    (@munch { / $part:literal $(/)* } -> ($($fmt_accum:literal),*) : ($($args_accum:expr),*)) => {
-        path!(@done ($( $fmt_accum, )* "/{}") : ($( $args_accum, )* $part))
-    };
-    (@munch { / $part:literal / $($tail:tt)* } -> ($($fmt_accum:literal),*) : ($($args_accum:expr),*)) => {
-        path!(@munch { / $($tail)* } -> ($( $fmt_accum, )* "/{}") : ($( $args_accum, )* $part ))
-    };
-
-    (@munch { / $($parts:ident).+ $(/)* } -> ($($fmt_accum:literal),*) : ($($args_accum:expr),*)) => {
-        path!(@done ($( $fmt_accum, )* "/{}") : ($( $args_accum, )* & $($parts).+ ))
-    };
-    (@munch { / $($parts:ident).+ / $($tail:tt)* } -> ($($fmt_accum:literal),*) : ($($args_accum:expr),*)) => {
-        path!(@munch { / $($tail)* } -> ($( $fmt_accum, )* "/{}") : ($( $args_accum, )* & $($parts).+ ))
-    };
-
-    (@done ($($fmt_accum:literal),*) : ($($args_accum:expr),*)) => {
-        format!(
-            concat!($( $fmt_accum, )*),
-            $( $args_accum, )*
-        )
-    };
-}
-
 mod key {
-    use super::{Stringalize, StringalizeError};
 
-    pub(super) fn group_join_configuration(
-        group_id: &impl Stringalize,
-    ) -> Result<String, StringalizeError> {
-        let group_id = group_id.stringalize()?;
-        let path = format!("openmls/groups/{group_id}/join-configuration");
-        Ok(path)
+    pub(super) fn group_join_configuration(group_id: &str) -> String {
+        format!("openmls/groups/{group_id}/join-configuration")
     }
 
-    pub(super) fn group_leaf_nodes(
-        group_id: &impl Stringalize,
-    ) -> Result<String, StringalizeError> {
-        let group_id = group_id.stringalize()?;
-        let path = format!("openmls/groups/{group_id}/leaf-nodes");
-        Ok(path)
+    pub(super) fn group_leaf_nodes(group_id: &str) -> String {
+        format!("openmls/groups/{group_id}/leaf-nodes")
     }
 
     pub(super) fn group_proposal_references(group_id: &str) -> String {
@@ -67,6 +19,74 @@ mod key {
 
     pub(super) fn group_proposal(group_id: &str, proposal_reference: &str) -> String {
         format!("openmls/groups/{group_id}/proposals/{proposal_reference}")
+    }
+
+    pub(super) fn group_tree(group_id: &str) -> String {
+        format!("openmls/groups/{group_id}/tree")
+    }
+
+    pub(super) fn group_interim_transcript_hash(group_id: &str) -> String {
+        format!("openmls/groups/{group_id}/interim-transcription-hash")
+    }
+
+    pub(super) fn group_context(group_id: &str) -> String {
+        format!("openmls/groups/{group_id}/context")
+    }
+
+    pub(super) fn group_confirmation_tag(group_id: &str) -> String {
+        format!("openmls/groups/{group_id}/confirmation-tag")
+    }
+
+    pub(super) fn group_state(group_id: &str) -> String {
+        format!("openmls/groups/{group_id}/state")
+    }
+
+    pub(super) fn group_message_secrets(group_id: &str) -> String {
+        format!("openmls/groups/{group_id}/message-secrets")
+    }
+
+    pub(super) fn group_resumption_pre_shared_key_store(group_id: &str) -> String {
+        format!("openmls/groups/{group_id}/pre-shared-key-store")
+    }
+
+    pub(super) fn group_leaf_index(group_id: &str) -> String {
+        format!("openmls/groups/{group_id}/leaf-index")
+    }
+
+    pub(super) fn group_epoch_secrets(group_id: &str) -> String {
+        format!("openmls/groups/{group_id}/epoch-secrets")
+    }
+
+    pub(super) fn signature_key_pair(public_key: &str) -> String {
+        format!("openmls/signature-keys/{public_key}")
+    }
+
+    pub(super) fn encryption_key_pair(public_key: &str) -> String {
+        format!("openmls/encryption-keys/{public_key}")
+    }
+
+    pub(super) fn group_epochs(group_id: &str) -> String {
+        format!("openmls/groups/{group_id}/epochs")
+    }
+
+    pub(super) fn group_epoch_leaf_indices(group_id: &str, epoch: &str) -> String {
+        format!("openmls/groups/{group_id}/epochs/{epoch}/leafs/indices")
+    }
+
+    pub(super) fn group_epoch_leaf_key_pairs(
+        group_id: &str,
+        epoch: &str,
+        leaf_index: u32,
+    ) -> String {
+        format!("openmls/groups/{group_id}/epochs/{epoch}/leafs/{leaf_index}/key-pairs")
+    }
+
+    pub(super) fn key_package(hash_reference: &str) -> String {
+        format!("openmls/key-packages/{hash_reference}")
+    }
+
+    pub(super) fn pre_shared_key(pre_shared_key_id: &str) -> String {
+        format!("openmls/pre-shared-keys/{pre_shared_key_id}")
     }
 }
 /// A local storage OpenMLS storage provider that should probably not be used.
@@ -247,7 +267,9 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         group_id: &GroupId,
         configuration: &MlsGroupJoinConfig,
     ) -> Result<(), Self::Error> {
-        self.set_item(&key::group_join_configuration(group_id)?, configuration)?;
+        let group_id = group_id.stringalize()?;
+        let group_join_configuration = key::group_join_configuration(&group_id);
+        self.set_item(&group_join_configuration, configuration)?;
         Ok(())
     }
 
@@ -259,13 +281,14 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         group_id: &GroupId,
         leaf_node: &LeafNode,
     ) -> Result<(), Self::Error> {
-        let path = key::group_leaf_nodes(group_id)?;
+        let group_id = group_id.stringalize()?;
+        let group_leaf_nodes = key::group_leaf_nodes(&group_id);
 
-        let mut leaf_nodes: Vec<String> = self.get_item(&path)?.unwrap_or_default();
+        let mut leaf_nodes: Vec<String> = self.get_item(&group_leaf_nodes)?.unwrap_or_default();
         // Leaf node is not clonable so we need to convert it to a string which means double encoding
         let leaf_node = leaf_node.stringalize()?;
         leaf_nodes.push(leaf_node);
-        self.set_item(&path, &leaf_nodes)?;
+        self.set_item(&group_leaf_nodes, &leaf_nodes)?;
 
         Ok(())
     }
@@ -305,7 +328,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         tree: &TreeSync,
     ) -> Result<(), Self::Error> {
         let group_id = group_id.stringalize()?;
-        self.set_item(&format!("openmls/groups/{group_id}/tree"), tree)?;
+        let group_tree = key::group_tree(&group_id);
+        self.set_item(&group_tree, tree)?;
         Ok(())
     }
 
@@ -318,10 +342,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         interim_transcript_hash: &InterimTranscriptHash,
     ) -> Result<(), Self::Error> {
         let group_id = group_id.stringalize()?;
-        self.set_item(
-            &format!("openmls/groups/{group_id}/interim-transcript-hash"),
-            interim_transcript_hash,
-        )?;
+        let group_interim_transcript_hash = key::group_interim_transcript_hash(&group_id);
+        self.set_item(&group_interim_transcript_hash, interim_transcript_hash)?;
         Ok(())
     }
 
@@ -334,7 +356,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         group_context: &GroupContext,
     ) -> Result<(), Self::Error> {
         let group_id = group_id.stringalize()?;
-        self.set_item(&format!("openmls/groups/{group_id}/context"), group_context)?;
+        let group_context_key = key::group_context(&group_id);
+        self.set_item(&group_context_key, group_context)?;
         Ok(())
     }
 
@@ -347,10 +370,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         confirmation_tag: &ConfirmationTag,
     ) -> Result<(), Self::Error> {
         let group_id = group_id.stringalize()?;
-        self.set_item(
-            &format!("openmls/groups/{group_id}/confirmation-tag"),
-            confirmation_tag,
-        )?;
+        let group_confirmation_tag_key = key::group_confirmation_tag(&group_id);
+        self.set_item(&group_confirmation_tag_key, confirmation_tag)?;
 
         Ok(())
     }
@@ -364,7 +385,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         group_state: &GroupState,
     ) -> Result<(), Self::Error> {
         let group_id = group_id.stringalize()?;
-        self.set_item(&format!("openmls/groups/{group_id}/state"), group_state)?;
+        let group_state_key = key::group_state(&group_id);
+        self.set_item(&group_state_key, group_state)?;
 
         Ok(())
     }
@@ -378,10 +400,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         message_secrets: &MessageSecrets,
     ) -> Result<(), Self::Error> {
         let group_id = group_id.stringalize()?;
-        self.set_item(
-            &format!("openmls/groups/{group_id}/message-secrets"),
-            message_secrets,
-        )?;
+        let message_secrets_key = key::group_message_secrets(&group_id);
+        self.set_item(&message_secrets_key, message_secrets)?;
 
         Ok(())
     }
@@ -395,8 +415,10 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         resumption_pre_shared_key_store: &ResumptionPskStore,
     ) -> Result<(), Self::Error> {
         let group_id = group_id.stringalize()?;
+        let group_resumption_pre_shared_key_store =
+            key::group_resumption_pre_shared_key_store(&group_id);
         self.set_item(
-            &format!("openmls/groups/{group_id}/resumption-pre-shared-key-store"),
+            &group_resumption_pre_shared_key_store,
             resumption_pre_shared_key_store,
         )?;
 
@@ -412,10 +434,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         own_leaf_index: &LeafNodeIndex,
     ) -> Result<(), Self::Error> {
         let group_id = group_id.stringalize()?;
-        self.set_item(
-            &format!("openmls/groups/{group_id}/own-leaf-index"),
-            own_leaf_index,
-        )?;
+        let group_own_leaf_index = key::group_leaf_index(&group_id);
+        self.set_item(&group_own_leaf_index, own_leaf_index)?;
 
         Ok(())
     }
@@ -429,10 +449,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         group_epoch_secrets: &GroupEpochSecrets,
     ) -> Result<(), Self::Error> {
         let group_id = group_id.stringalize()?;
-        self.set_item(
-            &format!("openmls/groups/{group_id}/epoch-secrets"),
-            group_epoch_secrets,
-        )?;
+        let group_epoch_secrets_key = key::group_epoch_secrets(&group_id);
+        self.set_item(&group_epoch_secrets_key, group_epoch_secrets)?;
 
         Ok(())
     }
@@ -446,10 +464,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         signature_key_pair: &SignatureKeyPair,
     ) -> Result<(), Self::Error> {
         let public_key = public_key.stringalize()?;
-        self.set_item(
-            &format!("openmls/signature-keys/{public_key}"),
-            signature_key_pair,
-        )?;
+        let signature_key_pairs = key::signature_key_pair(&public_key);
+        self.set_item(&signature_key_pairs, signature_key_pair)?;
 
         Ok(())
     }
@@ -463,7 +479,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         key_pair: &HpkeKeyPair,
     ) -> Result<(), Self::Error> {
         let public_key = public_key.stringalize()?;
-        self.set_item(&format!("openmls/encryption-keys/{public_key}"), key_pair)?;
+        let encryption_key_pairs = key::encryption_key_pair(&public_key);
+        self.set_item(&encryption_key_pairs, key_pair)?;
 
         Ok(())
     }
@@ -480,30 +497,24 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         key_pairs: &[HpkeKeyPair],
     ) -> Result<(), Self::Error> {
         let group_id = group_id.stringalize()?;
+        let group_epochs = key::group_epochs(&group_id);
 
-        let mut epochs: HashSet<String> = self
-            .get_item(&format!("openmls/groups/{group_id}/epochs"))?
-            .unwrap_or_default();
+        let mut epochs: HashSet<String> = self.get_item(&group_epochs)?.unwrap_or_default();
         let epoch = epoch.stringalize()?;
         epochs.insert(epoch.clone());
-        self.set_item(&format!("openmls/groups/{group_id}/epochs"), &epochs)?;
+        self.set_item(&group_epochs, &epochs)?;
 
+        let group_epoch_leaf_indices = key::group_epoch_leaf_indices(&group_id, &epoch);
         let mut leaf_indices: HashSet<u32> = self
-            .get_item(&format!(
-                "openmls/groups/{group_id}/epochs/{epoch}/leafs/indices"
-            ))?
+            .get_item(&group_epoch_leaf_indices)?
             .unwrap_or_default();
 
         leaf_indices.insert(leaf_index);
-        self.set_item(
-            &format!("openmls/groups/{group_id}/epochs/{epoch}/leafs/indices"),
-            &leaf_indices,
-        )?;
+        self.set_item(&group_epoch_leaf_indices, &leaf_indices)?;
 
-        self.set_item(
-            &format!("openmls/groups/{group_id}/epochs/{epoch}/leafs/{leaf_index}/key-pairs"),
-            &key_pairs,
-        )?;
+        let group_epoch_leaf_key_pairs =
+            key::group_epoch_leaf_key_pairs(&group_id, &epoch, leaf_index);
+        self.set_item(&group_epoch_leaf_key_pairs, &key_pairs)?;
 
         Ok(())
     }
@@ -517,10 +528,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         key_package: &KeyPackage,
     ) -> Result<(), Self::Error> {
         let hash_reference = hash_reference.stringalize()?;
-        self.set_item(
-            &format!("openmls/key-packages/{hash_reference}"),
-            key_package,
-        )?;
+        let key_package_key = key::key_package(&hash_reference);
+        self.set_item(&key_package_key, key_package)?;
         Ok(())
     }
 
@@ -529,14 +538,12 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         PskBundle: openmls_traits::storage::traits::PskBundle<VERSION>,
     >(
         &self,
-        psk_id: &PskId,
+        pre_shared_key_id: &PskId,
         pre_shared_key: &PskBundle,
     ) -> Result<(), Self::Error> {
-        let pre_shared_key_id = psk_id.stringalize()?;
-        self.set_item(
-            &format!("openmls/pre-shared-keys/{pre_shared_key_id}"),
-            pre_shared_key,
-        )?;
+        let pre_shared_key_id = pre_shared_key_id.stringalize()?;
+        let pre_shared_key_key = key::pre_shared_key(&pre_shared_key_id);
+        self.set_item(&pre_shared_key_key, pre_shared_key)?;
         Ok(())
     }
 
@@ -547,7 +554,9 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         &self,
         group_id: &GroupId,
     ) -> Result<Option<MlsGroupJoinConfig>, Self::Error> {
-        let configuration = self.get_item(&key::group_join_configuration(group_id)?)?;
+        let group_id = group_id.stringalize()?;
+        let group_join_configuration = key::group_join_configuration(&group_id);
+        let configuration = self.get_item(&group_join_configuration)?;
 
         Ok(configuration)
     }
@@ -560,8 +569,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         group_id: &GroupId,
     ) -> Result<Vec<LeafNode>, Self::Error> {
         let group_id = group_id.stringalize()?;
-        let leaf_nodes: Option<Vec<String>> =
-            self.get_item(&format!("openmls/groups/{group_id}/leaf-nodes"))?;
+        let group_own_leaf_nodes = key::group_leaf_nodes(&group_id);
+        let leaf_nodes: Option<Vec<String>> = self.get_item(&group_own_leaf_nodes)?;
 
         let Some(leaf_nodes) = leaf_nodes else {
             return Ok(Vec::new());
@@ -585,7 +594,7 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         group_id: &GroupId,
     ) -> Result<Vec<ProposalRef>, Self::Error> {
         let group_id = group_id.stringalize()?;
-        let path = key::group_proposal_references(&group_id)?;
+        let path = key::group_proposal_references(&group_id);
         let proposal_references: Option<Vec<String>> = self.get_item(&path)?;
 
         let Some(proposal_refs) = proposal_references else {
@@ -638,7 +647,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         group_id: &GroupId,
     ) -> Result<Option<TreeSync>, Self::Error> {
         let group_id = group_id.stringalize()?;
-        let tree = self.get_item(&format!("openmls/groups/{group_id}/tree"))?;
+        let group_tree = key::group_tree(&group_id);
+        let tree = self.get_item(&group_tree)?;
 
         Ok(tree)
     }
@@ -651,7 +661,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         group_id: &GroupId,
     ) -> Result<Option<GroupContext>, Self::Error> {
         let group_id = group_id.stringalize()?;
-        let context = self.get_item(&format!("openmls/groups/{group_id}/context"))?;
+        let group_context = key::group_context(&group_id);
+        let context = self.get_item(&group_context)?;
 
         Ok(context)
     }
@@ -664,9 +675,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         group_id: &GroupId,
     ) -> Result<Option<InterimTranscriptHash>, Self::Error> {
         let group_id = group_id.stringalize()?;
-        let hash = self.get_item(&format!(
-            "openmls/groups/{group_id}/interim-transcript-hash"
-        ))?;
+        let group_interim_transcript_hash = key::group_interim_transcript_hash(&group_id);
+        let hash = self.get_item(&group_interim_transcript_hash)?;
 
         Ok(hash)
     }
@@ -679,7 +689,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         group_id: &GroupId,
     ) -> Result<Option<ConfirmationTag>, Self::Error> {
         let group_id = group_id.stringalize()?;
-        let tag = self.get_item(&format!("openmls/groups/{group_id}/confirmation-tag"))?;
+        let group_confirmation_tag = key::group_confirmation_tag(&group_id);
+        let tag = self.get_item(&group_confirmation_tag)?;
 
         Ok(tag)
     }
@@ -692,7 +703,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         group_id: &GroupId,
     ) -> Result<Option<GroupState>, Self::Error> {
         let group_id = group_id.stringalize()?;
-        let state = self.get_item(&format!("openmls/groups/{group_id}/state"))?;
+        let group_state = key::group_state(&group_id);
+        let state = self.get_item(&group_state)?;
 
         Ok(state)
     }
@@ -705,7 +717,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         group_id: &GroupId,
     ) -> Result<Option<MessageSecrets>, Self::Error> {
         let group_id = group_id.stringalize()?;
-        let secrets = self.get_item(&format!("openmls/groups/{group_id}/message-secrets"))?;
+        let group_message_secrets = key::group_message_secrets(&group_id);
+        let secrets = self.get_item(&group_message_secrets)?;
 
         Ok(secrets)
     }
@@ -718,9 +731,9 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         group_id: &GroupId,
     ) -> Result<Option<ResumptionPskStore>, Self::Error> {
         let group_id = group_id.stringalize()?;
-        let store = self.get_item(&format!(
-            "openmls/groups/{group_id}/resumption-pre-shared-key-store"
-        ))?;
+        let group_resumption_pre_shared_key_store =
+            key::group_resumption_pre_shared_key_store(&group_id);
+        let store = self.get_item(&group_resumption_pre_shared_key_store)?;
 
         Ok(store)
     }
@@ -733,7 +746,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         group_id: &GroupId,
     ) -> Result<Option<LeafNodeIndex>, Self::Error> {
         let group_id = group_id.stringalize()?;
-        let index = self.get_item(&format!("openmls/groups/{group_id}/own-leaf-index"))?;
+        let group_leaf_index = key::group_leaf_index(&group_id);
+        let index = self.get_item(&group_leaf_index)?;
 
         Ok(index)
     }
@@ -746,7 +760,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         group_id: &GroupId,
     ) -> Result<Option<GroupEpochSecrets>, Self::Error> {
         let group_id = group_id.stringalize()?;
-        let secrets = self.get_item(&format!("openmls/groups/{group_id}/epoch-secrets"))?;
+        let group_epoch_secrets = key::group_epoch_secrets(&group_id);
+        let secrets = self.get_item(&group_epoch_secrets)?;
 
         Ok(secrets)
     }
@@ -759,7 +774,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         public_key: &SignaturePublicKey,
     ) -> Result<Option<SignatureKeyPair>, Self::Error> {
         let public_key = public_key.stringalize()?;
-        let key_pair = self.get_item(&format!("openmls/signature-keys/{public_key}"))?;
+        let signature_key_pair = key::signature_key_pair(&public_key);
+        let key_pair = self.get_item(&signature_key_pair)?;
 
         Ok(key_pair)
     }
@@ -772,7 +788,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         public_key: &EncryptionKey,
     ) -> Result<Option<HpkeKeyPair>, Self::Error> {
         let public_key = public_key.stringalize()?;
-        let key_pair = self.get_item(&format!("openmls/encryption-keys/{public_key}"))?;
+        let encryption_key_pair = key::encryption_key_pair(&public_key);
+        let key_pair = self.get_item(&encryption_key_pair)?;
 
         Ok(key_pair)
     }
@@ -789,10 +806,10 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
     ) -> Result<Vec<HpkeKeyPair>, Self::Error> {
         let group_id = group_id.stringalize()?;
         let epoch = epoch.stringalize()?;
+        let group_epoch_leaf_key_pairs =
+            key::group_epoch_leaf_key_pairs(&group_id, &epoch, leaf_index);
         let key_pairs = self
-            .get_item(&format!(
-                "openmls/groups/{group_id}/epochs/{epoch}/leafs/{leaf_index}/key-pairs"
-            ))?
+            .get_item(&group_epoch_leaf_key_pairs)?
             .unwrap_or_default();
 
         Ok(key_pairs)
@@ -806,7 +823,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         hash_reference: &KeyPackageRef,
     ) -> Result<Option<KeyPackage>, Self::Error> {
         let hash_reference = hash_reference.stringalize()?;
-        let key_package = self.get_item(&format!("openmls/key-packages/{hash_reference}"))?;
+        let key_package = key::key_package(&hash_reference);
+        let key_package = self.get_item(&key_package)?;
 
         Ok(key_package)
     }
@@ -819,9 +837,10 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         pre_shared_key_id: &PskId,
     ) -> Result<Option<PskBundle>, Self::Error> {
         let pre_shared_key_id = pre_shared_key_id.stringalize()?;
-        let psk_bundle = self.get_item(&format!("openmls/pre-shared-keys/{pre_shared_key_id}"))?;
+        let pre_shared_key = key::pre_shared_key(&pre_shared_key_id);
+        let pre_shared_key_bundle = self.get_item(&pre_shared_key)?;
 
-        Ok(psk_bundle)
+        Ok(pre_shared_key_bundle)
     }
 
     fn remove_proposal<
@@ -833,19 +852,18 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         proposal_reference: &ProposalRef,
     ) -> Result<(), Self::Error> {
         let group_id = group_id.stringalize()?;
-        let path = key::group_proposal_references(&group_id)?;
+        let group_proposal_references = key::group_proposal_references(&group_id);
         let proposal_reference = proposal_reference.stringalize()?;
 
-        let references: Option<HashSet<String>> = self.get_item(&path)?;
+        let references: Option<HashSet<String>> = self.get_item(&group_proposal_references)?;
 
         if let Some(mut references) = references {
             references.remove(&proposal_reference);
-            self.set_item(&path, &references)?;
+            self.set_item(&group_proposal_references, &references)?;
         }
 
-        self.remove_item(&format!(
-            "openmls/groups/{group_id}/proposals/{proposal_reference}"
-        ))?;
+        let group_proposal = key::group_proposal(&group_id, &proposal_reference);
+        self.remove_item(&group_proposal)?;
 
         Ok(())
     }
@@ -855,8 +873,9 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         group_id: &GroupId,
     ) -> Result<(), Self::Error> {
         let group_id = group_id.stringalize()?;
+        let group_leaf_nodes = key::group_leaf_nodes(&group_id);
 
-        self.remove_item(&format!("openmls/groups/{group_id}/leaf-nodes"))?;
+        self.remove_item(&group_leaf_nodes)?;
 
         Ok(())
     }
@@ -865,7 +884,9 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         &self,
         group_id: &GroupId,
     ) -> Result<(), Self::Error> {
-        self.remove_item(&key::group_join_configuration(group_id)?)?;
+        let group_id = group_id.stringalize()?;
+        let group_join_configuration = key::group_join_configuration(&group_id);
+        self.remove_item(&group_join_configuration)?;
 
         Ok(())
     }
@@ -875,8 +896,9 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         group_id: &GroupId,
     ) -> Result<(), Self::Error> {
         let group_id = group_id.stringalize()?;
+        let group_tree = key::group_tree(&group_id);
 
-        self.remove_item(&format!("openmls/groups/{group_id}/tree"))?;
+        self.remove_item(&group_tree)?;
 
         Ok(())
     }
@@ -886,8 +908,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         group_id: &GroupId,
     ) -> Result<(), Self::Error> {
         let group_id = group_id.stringalize()?;
-
-        self.remove_item(&format!("openmls/groups/{group_id}/confirmation-tag"))?;
+        let group_confirmation_tag = key::group_confirmation_tag(&group_id);
+        self.remove_item(&group_confirmation_tag)?;
 
         Ok(())
     }
@@ -897,8 +919,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         group_id: &GroupId,
     ) -> Result<(), Self::Error> {
         let group_id = group_id.stringalize()?;
-
-        self.remove_item(&format!("openmls/groups/{group_id}/state"))?;
+        let group_state = key::group_state(&group_id);
+        self.remove_item(&group_state)?;
 
         Ok(())
     }
@@ -908,8 +930,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         group_id: &GroupId,
     ) -> Result<(), Self::Error> {
         let group_id = group_id.stringalize()?;
-
-        self.remove_item(&format!("openmls/groups/{group_id}/context"))?;
+        let group_context = key::group_context(&group_id);
+        self.remove_item(&group_context)?;
 
         Ok(())
     }
@@ -921,10 +943,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         group_id: &GroupId,
     ) -> Result<(), Self::Error> {
         let group_id = group_id.stringalize()?;
-
-        self.remove_item(&format!(
-            "openmls/groups/{group_id}/interim-transcript-hash"
-        ))?;
+        let group_interim_transcript_hash = key::group_interim_transcript_hash(&group_id);
+        self.remove_item(&group_interim_transcript_hash)?;
 
         Ok(())
     }
@@ -934,9 +954,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         group_id: &GroupId,
     ) -> Result<(), Self::Error> {
         let group_id = group_id.stringalize()?;
-
-        self.remove_item(&format!("openmls/groups/{group_id}/message-secrets"))?;
-
+        let group_message_secrets = key::group_message_secrets(&group_id);
+        self.remove_item(&group_message_secrets)?;
         Ok(())
     }
 
@@ -947,10 +966,9 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         group_id: &GroupId,
     ) -> Result<(), Self::Error> {
         let group_id = group_id.stringalize()?;
-
-        self.remove_item(&format!(
-            "openmls/groups/{group_id}/resumption-pre-shared-key-store"
-        ))?;
+        let group_resumption_pre_shared_key_store =
+            key::group_resumption_pre_shared_key_store(&group_id);
+        self.remove_item(&group_resumption_pre_shared_key_store)?;
 
         Ok(())
     }
@@ -960,9 +978,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         group_id: &GroupId,
     ) -> Result<(), Self::Error> {
         let group_id = group_id.stringalize()?;
-
-        self.remove_item(&format!("openmls/groups/{group_id}/own-leaf-index"))?;
-
+        let group_leaf_index = key::group_leaf_index(&group_id);
+        self.remove_item(&group_leaf_index)?;
         Ok(())
     }
 
@@ -971,9 +988,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         group_id: &GroupId,
     ) -> Result<(), Self::Error> {
         let group_id = group_id.stringalize()?;
-
-        self.remove_item(&format!("openmls/groups/{group_id}/epoch-secrets"))?;
-
+        let group_epoch_secrets = key::group_epoch_secrets(&group_id);
+        self.remove_item(&group_epoch_secrets)?;
         Ok(())
     }
 
@@ -986,16 +1002,15 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
     ) -> Result<(), Self::Error> {
         let proposal_references = self.queued_proposal_refs::<GroupId, ProposalRef>(group_id)?;
         let group_id = group_id.stringalize()?;
-        let path = key::group_proposal_references(&group_id)?;
+        let group_proposal_references = key::group_proposal_references(&group_id);
 
-        for proposal_ref in proposal_references {
-            let proposal_reference = proposal_ref.stringalize()?;
-            self.remove_item(&format!(
-                "openmls/groups/{group_id}/proposals/{proposal_reference}"
-            ))?;
+        for proposal_reference in proposal_references {
+            let proposal_reference = proposal_reference.stringalize()?;
+            let group_proposal = key::group_proposal(&group_id, &proposal_reference);
+            self.remove_item(&group_proposal)?;
         }
 
-        self.remove_item(&path)?;
+        self.remove_item(&group_proposal_references)?;
 
         Ok(())
     }
@@ -1007,7 +1022,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         public_key: &SignaturePublicKey,
     ) -> Result<(), Self::Error> {
         let public_key = public_key.stringalize()?;
-        self.remove_item(&format!("openmls/signature-keys/{public_key}"))?;
+        let signature_key_pair = key::signature_key_pair(&public_key);
+        self.remove_item(&signature_key_pair)?;
         Ok(())
     }
 
@@ -1018,7 +1034,8 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         public_key: &EncryptionKey,
     ) -> Result<(), Self::Error> {
         let public_key = public_key.stringalize()?;
-        self.remove_item(&format!("openmls/encryption-keys/{public_key}"))?;
+        let encryption_key_pair = key::encryption_key_pair(&public_key);
+        self.remove_item(&encryption_key_pair)?;
         Ok(())
     }
 
@@ -1033,44 +1050,38 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
     ) -> Result<(), Self::Error> {
         let group_id = group_id.stringalize()?;
         let epoch = epoch.stringalize()?;
+        let group_epoch_leaf_key_pairs =
+            key::group_epoch_leaf_key_pairs(&group_id, &epoch, leaf_index);
 
-        self.remove_item(&format!(
-            "openmls/groups/{group_id}/epochs/{epoch}/leafs/{leaf_index}/key-pairs"
-        ))?;
+        self.remove_item(&group_epoch_leaf_key_pairs)?;
 
-        let leaf_indices: Option<HashSet<u32>> = self.get_item(&format!(
-            "openmls/groups/{group_id}/epochs/{epoch}/leafs/indices"
-        ))?;
+        let group_epoch_leaf_indices = key::group_epoch_leaf_indices(&group_id, &epoch);
+        let leaf_indices: Option<HashSet<u32>> = self.get_item(&group_epoch_leaf_indices)?;
 
         if let Some(mut leaf_indices) = leaf_indices {
             leaf_indices.remove(&leaf_index);
 
             if leaf_indices.is_empty() {
-                self.remove_item(&format!(
-                    "openmls/groups/{group_id}/epochs/{epoch}/leafs/indices"
-                ))?;
+                self.remove_item(&group_epoch_leaf_indices)?;
             } else {
-                self.set_item(
-                    &format!("openmls/groups/{group_id}/epochs/{epoch}/leafs/indices"),
-                    &leaf_indices,
-                )?;
+                self.set_item(&group_epoch_leaf_indices, &leaf_indices)?;
             }
         }
 
-        let epochs: Option<HashSet<String>> =
-            self.get_item(&format!("openmls/groups/{group_id}/epochs"))?;
+        let group_epochs = key::group_epochs(&group_id);
+        let epochs: Option<HashSet<String>> = self.get_item(&group_epochs)?;
 
         if let Some(mut epochs) = epochs {
-            epochs.remove(epoch);
+            epochs.remove(&epoch);
 
             if epochs.is_empty() {
-                self.remove_item(&format!("openmls/groups/{group_id}/epochs"))?;
+                self.remove_item(&group_epochs)?;
             } else {
-                self.set_item(&format!("openmls/groups/{group_id}/epochs"), &epochs)?;
+                self.set_item(&group_epochs, &epochs)?;
             }
         }
 
-        todo!()
+        Ok(())
     }
 
     fn delete_key_package<
@@ -1079,29 +1090,21 @@ impl openmls_traits::storage::StorageProvider<VERSION> for LocalStorage {
         &self,
         hash_reference: &KeyPackageRef,
     ) -> Result<(), Self::Error> {
-        let instruction = serde_wasm_bindgen::to_value(&Operation::DeleteKeyPackage)?;
-        let hash_reference = serde_wasm_bindgen::to_value(hash_reference)?;
+        let hash_reference = hash_reference.stringalize()?;
+        let key_package = key::key_package(&hash_reference);
+        self.remove_item(&key_package)?;
 
-        let result = self
-            .bridge
-            .call2(&JsValue::NULL, &instruction, &hash_reference)
-            .map_err(InstructionError::JsError)?;
-
-        serde_wasm_bindgen::from_value(result).map_err(InstructionError::Deserialize)
+        Ok(())
     }
 
     fn delete_psk<PskKey: openmls_traits::storage::traits::PskId<VERSION>>(
         &self,
-        psk_id: &PskKey,
+        pre_shared_key_id: &PskKey,
     ) -> Result<(), Self::Error> {
-        let instruction = serde_wasm_bindgen::to_value(&Operation::DeletePreSharedKey)?;
-        let psk_id = serde_wasm_bindgen::to_value(psk_id)?;
+        let pre_shared_key_id = pre_shared_key_id.stringalize()?;
+        let pre_shared_key = key::pre_shared_key(&pre_shared_key_id);
+        self.remove_item(&pre_shared_key)?;
 
-        let result = self
-            .bridge
-            .call2(&JsValue::NULL, &instruction, &psk_id)
-            .map_err(InstructionError::JsError)?;
-
-        serde_wasm_bindgen::from_value(result).map_err(InstructionError::Deserialize)
+        Ok(())
     }
 }
