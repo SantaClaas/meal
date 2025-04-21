@@ -1,7 +1,6 @@
 import { Navigate, useNavigate, useParams } from "@solidjs/router";
 import { createResource, Match, Switch } from "solid-js";
 import { useAppContext, messagesUrl } from "../components/AppContext";
-import { decode_key_package } from "../../../core/pkg";
 import { sendMessage } from "../sendMessage";
 
 //@ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
@@ -22,7 +21,7 @@ export default function Join() {
 
   const [app, setApp] = useAppContext();
 
-  const [keyPackage] = createResource(parameters.package, decode_key_package);
+  const [keyPackage] = createResource(parameters.package, app.client.decode_key_package);
 
   const navigate = useNavigate();
   /** @param {Parameters<JSX.EventHandler<HTMLFormElement, SubmitEvent>>[0]} event */

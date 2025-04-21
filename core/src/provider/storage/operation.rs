@@ -1,6 +1,6 @@
 #[derive(serde::Serialize, Debug)]
 pub(super) enum Operation {
-    WriteMlsJoinConfig,
+    WriteMlsJoinConfiguration,
     AppendOwnLeafNode,
     QueueProposal,
     WriteTree,
@@ -17,7 +17,7 @@ pub(super) enum Operation {
     WriteEncryptionEpochKeyPairs,
     WriteKeyPackage,
     WritePreSharedKey,
-    ReadMlsGroupJoinConfig,
+    ReadMlsGroupJoinConfiguration,
     ReadOwnLeafNodes,
     ReadQueuedProposalReferences,
     ReadQueuedProposals,
@@ -52,5 +52,5 @@ pub(super) enum Operation {
     DeleteEncryptionKeyPair,
     DeleteEncryptionEpochKeyPairs,
     DeleteKeyPackage,
-    DeletePsk,
+    DeletePreSharedKey,
 }

@@ -19,7 +19,10 @@ const name = localStorage.getItem("name");
 const isOnboarded = localStorage.getItem("isOnboarded") !== null;
 await init();
 /** @deprecated */
-const client = new Client(id ?? undefined, name ?? undefined);
+// @ts-ignore
+const client = new Client(id ?? undefined, name ?? undefined, (...bleh) => {
+  console.warn("Received bridge request", bleh);
+});
 
 // const isLocalhost =
 //   window.location.hostname === "localhost" ||

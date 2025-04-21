@@ -1,8 +1,9 @@
+mod local;
 mod operation;
 
 use operation::Operation;
-use wasm_bindgen::JsValue;
-use web_sys::js_sys;
+use wasm_bindgen::{JsCast, JsValue};
+use web_sys::js_sys::{self, Promise};
 
 const VERSION: u16 = 1;
 
@@ -38,13 +39,15 @@ impl openmls_traits::storage::StorageProvider<VERSION> for Provider {
         group_id: &GroupId,
         configuration: &MlsGroupJoinConfig,
     ) -> Result<(), Self::Error> {
-        let instruction = serde_wasm_bindgen::to_value(&Operation::WriteMlsJoinConfig)?;
+        let instruction = serde_wasm_bindgen::to_value(&Operation::WriteMlsJoinConfiguration)?;
         let group_id = serde_wasm_bindgen::to_value(&group_id)?;
         let configuration = serde_wasm_bindgen::to_value(&configuration)?;
 
-        self.bridge
+        let promise = self
+            .bridge
             .call3(&JsValue::NULL, &instruction, &group_id, &configuration)
             .map_err(InstructionError::JsError)?;
+
         Ok(())
     }
 
@@ -391,7 +394,7 @@ impl openmls_traits::storage::StorageProvider<VERSION> for Provider {
         &self,
         group_id: &GroupId,
     ) -> Result<Option<MlsGroupJoinConfig>, Self::Error> {
-        let instruction = serde_wasm_bindgen::to_value(&Operation::ReadMlsGroupJoinConfig)?;
+        let instruction = serde_wasm_bindgen::to_value(&Operation::ReadMlsGroupJoinConfiguration)?;
 
         let group_id = serde_wasm_bindgen::to_value(group_id)?;
 
@@ -1018,7 +1021,7 @@ impl openmls_traits::storage::StorageProvider<VERSION> for Provider {
         &self,
         psk_id: &PskKey,
     ) -> Result<(), Self::Error> {
-        let instruction = serde_wasm_bindgen::to_value(&Operation::DeletePsk)?;
+        let instruction = serde_wasm_bindgen::to_value(&Operation::DeletePreSharedKey)?;
         let psk_id = serde_wasm_bindgen::to_value(psk_id)?;
 
         let result = self

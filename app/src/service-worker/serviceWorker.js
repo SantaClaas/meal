@@ -1,8 +1,12 @@
 import { precacheAndRoute } from "workbox-precaching";
 import { openDB } from "idb";
 import init, { Client as CoreClient } from "meal-core";
+import sqlite3InitModule from '@sqlite.org/sqlite-wasm';
 
-/** @import { Schema } from "./schema" */
+/**
+* @import { Schema } from "./schema"
+* @import { Operation } from "./operation"
+*/
 
 // @ts-expect-error
 self.__WB_DISABLE_DEV_LOGS = true;
@@ -20,6 +24,23 @@ const openDatabase = /** @type {typeof openDB<Schema>} */ (openDB)("meal", 1, {
   },
 });
 
+
+openDatabase.then((database) => {
+  const transaction = database.transaction("configuration", "readwrite");
+  const store = transaction.objectStore("configuration");
+  if (store.add === undefined) throw new Error("Store is undefined");
+
+  store.add({});
+
+})
+
+/**
+*
+* @param {Operation} operation
+*/
+function handleDatabaseRequest(operation) {
+  console.debug("handle database request", arguments);
+}
 async function initializeClient() {
   // Get configuration
   const database = await openDatabase;
@@ -33,7 +54,8 @@ async function initializeClient() {
   await init();
   const client = new CoreClient(
     configuration?.clientId,
-    configuration?.user?.name
+    configuration?.user?.name,
+    handleDatabaseRequest
   );
 
   return client;

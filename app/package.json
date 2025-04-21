@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@solidjs/router": "^0.15.3",
+    "@sqlite.org/sqlite-wasm": "3.49.1-build4",
     "idb": "^8.0.2",
     "meal-core": "link:../core/pkg",
     "qrcode": "^1.5.4",
