@@ -91,10 +91,10 @@ mod key {
 }
 /// A local storage OpenMLS storage provider that should probably not be used.
 /// But it is the only persistent synchronous storage in the browser.
-struct LocalStorage(web_sys::Storage);
+pub(crate) struct LocalStorage(web_sys::Storage);
 
 #[derive(Debug, thiserror::Error)]
-enum NewLocalStorageError {
+pub(crate) enum NewLocalStorageError {
     #[error("Could not get the global window object")]
     NoWindow,
     #[error("Error getting local storage")]
@@ -104,7 +104,7 @@ enum NewLocalStorageError {
 }
 
 #[derive(Debug, thiserror::Error)]
-enum GetItemError {
+pub(crate) enum GetItemError {
     #[error("Error getting item")]
     GetItemError(JsValue),
     #[error("Error deserializing item")]
@@ -113,10 +113,10 @@ enum GetItemError {
 
 #[derive(Debug, thiserror::Error)]
 #[error("Error removing item")]
-struct RemoveItemError(JsValue);
+pub(crate) struct RemoveItemError(JsValue);
 
 impl LocalStorage {
-    fn new() -> Result<Self, NewLocalStorageError> {
+    pub(crate) fn new() -> Result<Self, NewLocalStorageError> {
         web_sys::window()
             .ok_or(NewLocalStorageError::NoWindow)?
             .local_storage()
@@ -139,57 +139,7 @@ impl LocalStorage {
         self.0.remove_item(&key).map_err(RemoveItemError)
     }
 
-    fn update_item<T: serde::de::DeserializeOwned + Stringalize>(
-        &self,
-        key: &str,
-        update: impl FnOnce(Option<T>) -> Option<T>,
-    ) -> Result<(), LocalStorageError> {
-        let item: Option<T> = self.get_item(key)?;
-        let item = update(item);
-        if let Some(item) = item {
-            self.set_item(key, &item);
-            return Ok(());
-        }
-
-        self.remove_item(key)?;
-        Ok(())
-    }
-
     fn set_item(&self, key: &str, value: &impl Stringalize) -> Result<(), SetItemError> {
-        let value = value.stringalize()?;
-
-        self.0
-            .set_item(&key, &value)
-            .map_err(SetItemError::SetItemError)
-    }
-
-    fn set_item_1(
-        &self,
-        key_prefix: &str,
-        key: &impl Stringalize,
-        value: &impl Stringalize,
-    ) -> Result<(), SetItemError> {
-        let key = key.stringalize()?;
-
-        let key = format!("{key_prefix}-{key}");
-        let value = value.stringalize()?;
-
-        self.0
-            .set_item(&key, &value)
-            .map_err(SetItemError::SetItemError)
-    }
-
-    fn set_item_2(
-        &self,
-        key_prefix: &str,
-        key_1: &impl Stringalize,
-        key_2: &impl Stringalize,
-        value: &impl Stringalize,
-    ) -> Result<(), SetItemError> {
-        let key_1 = key_1.stringalize()?;
-        let key_2 = key_2.stringalize()?;
-
-        let key = format!("{key_prefix}-{key_1}-{key_2}");
         let value = value.stringalize()?;
 
         self.0
@@ -199,7 +149,7 @@ impl LocalStorage {
 }
 
 #[derive(Debug, thiserror::Error)]
-enum StringalizeError {
+pub(crate) enum StringalizeError {
     #[error("Error serializing with postcard: {0}")]
     PostcardError(#[from] postcard::Error),
 }
@@ -217,7 +167,7 @@ impl<K: serde::Serialize> Stringalize for K {
 }
 
 #[derive(Debug, thiserror::Error)]
-enum DestringalizeError {
+pub(crate) enum DestringalizeError {
     #[error("Error decoding base64")]
     Base64Error(#[from] base64::DecodeError),
     #[error("Error deserializing with postcard: {0}")]
@@ -233,7 +183,7 @@ fn destringalize<K: serde::de::DeserializeOwned>(encoded: &str) -> Result<K, Des
 const VERSION: u16 = 1;
 
 #[derive(Debug, thiserror::Error)]
-enum SetItemError {
+pub(crate) enum SetItemError {
     #[error("Error stringalizing: {0}")]
     StringalizeError(#[from] StringalizeError),
     #[error("Error setting item")]
@@ -241,7 +191,7 @@ enum SetItemError {
 }
 
 #[derive(Debug, thiserror::Error)]
-enum LocalStorageError {
+pub(crate) enum LocalStorageError {
     #[error("Error stringalizing: {0}")]
     StringalizeError(#[from] StringalizeError),
     #[error("Error destringalizing: {0}")]

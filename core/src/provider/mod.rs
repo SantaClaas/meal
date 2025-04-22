@@ -1,19 +1,19 @@
 use openmls_rust_crypto::RustCrypto;
 use openmls_traits::OpenMlsProvider;
-use web_sys::js_sys;
+use storage::local::{LocalStorage, NewLocalStorageError};
 
 pub(super) mod storage;
 pub(super) struct Provider {
     crypto: RustCrypto,
-    storage: storage::Provider,
+    storage: LocalStorage,
 }
 
 impl Provider {
-    pub(super) fn new(bridge: js_sys::Function) -> Self {
-        Self {
+    pub(super) fn new() -> Result<Self, NewLocalStorageError> {
+        Ok(Self {
             crypto: RustCrypto::default(),
-            storage: storage::Provider::new(bridge),
-        }
+            storage: LocalStorage::new()?,
+        })
     }
 }
 
@@ -22,7 +22,7 @@ impl OpenMlsProvider for Provider {
 
     type RandProvider = RustCrypto;
 
-    type StorageProvider = storage::Provider;
+    type StorageProvider = LocalStorage;
 
     fn storage(&self) -> &Self::StorageProvider {
         &self.storage

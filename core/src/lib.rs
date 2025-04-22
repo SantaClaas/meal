@@ -13,7 +13,6 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use tls_codec::Serialize as _;
 use wasm_bindgen::prelude::*;
-use web_sys::js_sys;
 
 pub(crate) const CIPHERSUITE: Ciphersuite =
     Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
@@ -111,10 +110,10 @@ enum ApplicationMessage {
 #[wasm_bindgen]
 impl Client {
     #[wasm_bindgen(constructor)]
-    pub fn new(id: Option<String>, name: Option<String>, storage_bridge: js_sys::Function) -> Self {
+    pub fn new(id: Option<String>, name: Option<String>) -> Self {
         console_error_panic_hook::set_once();
 
-        let provider = Provider::new(storage_bridge);
+        let provider = Provider::new().unwrap();
         let client_id = id.unwrap_or_else(|| nanoid!(ID_LENGTH));
 
         //TODO Basic credentials only for tests and demo
