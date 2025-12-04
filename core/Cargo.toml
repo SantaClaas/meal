@@ -15,7 +15,7 @@ openmls_basic_credential = "0.3.0"
 openmls_rust_crypto = "0.3.0"
 openmls_traits = "0.3.0"
 postcard = { version = "1.0.10", features = ["alloc"] }
-serde = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = ["derive", "rc"] }
 serde-wasm-bindgen = "0.6.5"
 thiserror = { workspace = true }
 time = { version = "0.3.41", features = ["formatting", "parsing", "serde"] }
