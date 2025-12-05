@@ -7,11 +7,13 @@
 
 use std::{collections::HashSet, rc::Rc};
 
+use nanoid::nanoid;
 use openmls::prelude::*;
 use openmls_basic_credential::SignatureKeyPair;
 use serde::{Deserialize, Serialize};
+use wasm_bindgen::{JsError, prelude::wasm_bindgen};
 
-use crate::v2::provider::Provider;
+use crate::{CIPHERSUITE, ID_LENGTH, v2::provider::Provider};
 
 #[derive(Serialize, Deserialize)]
 struct User {
@@ -28,4 +30,37 @@ struct Client {
     /// The group state can be retrieved from the storage provider using the group id.
     groups: HashSet<GroupId>,
     provider: Provider,
+}
+
+#[wasm_bindgen]
+pub fn create_client(id: Option<String>, name: Option<String>) -> Result<Vec<u8>, JsError> {
+    console_error_panic_hook::set_once();
+
+    let provider = Provider::new();
+    let client_id = id.unwrap_or_else(|| nanoid!(ID_LENGTH));
+
+    //TODO Basic credentials only for tests and demo
+    let credential: Credential = BasicCredential::new(client_id.clone().into_bytes()).into();
+    let signature_keys = SignatureKeyPair::new(CIPHERSUITE.signature_algorithm()).unwrap();
+    signature_keys.store(provider.storage()).unwrap();
+
+    let credential = CredentialWithKey {
+        credential,
+        signature_key: signature_keys.public().into(),
+    };
+
+    let user = User {
+        name: name.into(),
+        credential,
+        signature_key: signature_keys,
+    };
+
+    let client = Client {
+        id: client_id.into(),
+        user,
+        groups: HashSet::new(),
+        provider,
+    };
+
+    postcard::to_allocvec(&client).map_err(JsError::from)
 }
