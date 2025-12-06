@@ -173,7 +173,6 @@ async function initializeCrackle() {
   if (worker.active === null) throw new Error("No active service worker");
   worker.active.postMessage(message, [port1]);
   const wrapper = await proxy<Handler>(port2);
-  console.debug("Crackle", wrapper.getIsOnboarded);
   return wrapper;
 }
 
@@ -188,7 +187,7 @@ export default function Index() {
   async function setName(name: string) {
     console.debug("Setting name", name, crackled);
     const crackle = await crackled;
-    console.debug("Setting name", crackled);
+    console.debug("Setting name 2");
     await crackle.completeOnboarding(name);
     console.debug("Name set");
     setIsOnboarded(true);
