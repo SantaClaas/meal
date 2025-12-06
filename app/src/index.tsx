@@ -35,7 +35,7 @@ render(
         <Route path="/debug" component={Debug} />
       </Router>
 
-      <span class="absolute bottom-4 left-4 text-xs text-reduced-contrast-on-surface-variant">
+      <span class="absolute bottom-4 left-4 text-xs text-reduced-contrast-on-surface-variant pointer-events-none">
         {version}+{__GIT_COMMIT_HASH__}
       </span>
     </AppContextProvider>
