@@ -1,6 +1,6 @@
 import { precacheAndRoute } from "workbox-precaching";
 import { openDB } from "idb";
-import init, { create_client } from "meal-core";
+import init, { create_client, create_invite } from "meal-core";
 import { expose } from "../crackle";
 import { Schema } from "./schema";
 
@@ -45,22 +45,13 @@ async function getConfiguration(): Promise<Schema["configuration"]> {
   return configuration;
 }
 
-/**
- *
- * @returns {Promise<ArrayBuffer>}
- */
-async function initializeClient() {
-  const configuration = await getConfiguration();
-  // Have to use wasm-pack --target web to build the wasm package to get the init function because with the bundler target
-  // it is included as a top level await which is not supported by service workers according to the web spec
-  await init();
-
+async function persistClient(client: Uint8Array) {
   // Persist client state
   const directory = await navigator.storage.getDirectory();
 
   const FILE_NAME = "client.meal";
-  /** @type {FileSystemFileHandle | undefined} */
-  let fileHandle;
+
+  let fileHandle: FileSystemFileHandle | undefined;
   try {
     fileHandle = await directory.getFileHandle(FILE_NAME);
   } catch (error) {
@@ -73,13 +64,8 @@ async function initializeClient() {
 
   if (fileHandle !== undefined) {
     const file = await fileHandle.getFile();
-    return await file.arrayBuffer();
+    return new Uint8Array(await file.arrayBuffer());
   }
-
-  const client = create_client(
-    configuration.clientId,
-    configuration.user?.name
-  );
 
   fileHandle = await directory.getFileHandle(FILE_NAME, {
     create: true,
@@ -95,12 +81,29 @@ async function initializeClient() {
     writeStream.close();
   }
 
-  console.debug("Created new client", client);
-
-  return client.buffer;
+  return client;
 }
 
-const setupClient = initializeClient();
+async function initializeClient(): Promise<Uint8Array> {
+  const configuration = await getConfiguration();
+  // Have to use wasm-pack --target web to build the wasm package to get the init function because with the bundler target
+  // it is included as a top level await which is not supported by service workers according to the web spec
+  await init();
+
+  const client = create_client(
+    configuration.clientId,
+    configuration.user?.name
+  );
+
+  return await persistClient(client);
+}
+
+let setupClient = initializeClient();
+
+async function updateClient(client: Uint8Array) {
+  setupClient = persistClient(client);
+  await setupClient;
+}
 
 /** The url for messages endpoint. Don't forget the trailing slash. */
 const messagesUrl = new URL("/messages/", self.location.origin);
@@ -119,6 +122,20 @@ const handler = {
     const store = transaction.objectStore("configuration");
     const cursor = await store.openCursor();
     cursor?.update({ isOnboarded: true, name });
+  },
+
+  async createInvite() {
+    const client = await setupClient;
+    // The getter should clone the data so we can free the memory
+    const result = create_invite(client);
+    const { invite_payload, client: newClient } = result;
+    result.free();
+
+    // Persisting the client does not block us from responding
+    void updateClient(newClient);
+
+    const inviteUrl = new URL(`/join/${invite_payload}`, location.origin);
+    return inviteUrl.href;
   },
 };
 

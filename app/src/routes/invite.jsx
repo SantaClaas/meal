@@ -3,7 +3,7 @@ import { useAppContext } from "../components/AppContext";
 import { createEffect, createResource, createSignal, Show } from "solid-js";
 //TODO replace with SVG QR-Code solution. Maybe with something custom
 import QRCode from "qrcode";
-import { sendRequest } from "../sendMessage";
+import { setupCrackle } from "../useCrackle";
 /** @import { JSX, EffectFunction, VoidProps, Signal } from "solid-js" */
 
 const FormElement = /** @type {const} */ ({
@@ -100,14 +100,8 @@ export default function Invite() {
   const [qrCodeFile, setQrCodeFile] = createSignal();
 
   const [inviteUrl] = createResource(async () => {
-    /** @type {ServiceWorkerResponse} */
-    const response = await sendRequest({
-      type: "createInvite",
-    });
-    if (response.type !== "inviteUrl")
-      throw new Error("Expected inviteUrl response");
-
-    return response.inviteUrl;
+    const crackle = await setupCrackle;
+    return await crackle.createInvite();
   });
 
   const shareData = () => {
