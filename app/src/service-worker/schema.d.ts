@@ -6,5 +6,6 @@ interface Schema extends DBSchema {
       name?: string;
     };
     clientId?: string;
+    isOnboarded: boolean;
   };
 }

@@ -18,7 +18,7 @@ export default defineConfig({
       },
       strategies: "injectManifest",
       srcDir: "./src/service-worker",
-      filename: "serviceWorker.js",
+      filename: "serviceWorker.ts",
       pwaAssets: {
         image: "./public/logo-04.svg",
       },
@@ -47,6 +47,6 @@ export default defineConfig({
     target: "esnext",
   },
   optimizeDeps: {
-    exclude: ['@sqlite.org/sqlite-wasm'],
+    exclude: ["@sqlite.org/sqlite-wasm"],
   },
 });

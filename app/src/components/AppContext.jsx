@@ -1,5 +1,4 @@
 import { createContext, createEffect, useContext } from "solid-js";
-import init, { Client } from "meal-core";
 import { createStore } from "solid-js/store";
 
 /**
@@ -17,12 +16,6 @@ import { createStore } from "solid-js/store";
 const id = localStorage.getItem("id");
 const name = localStorage.getItem("name");
 const isOnboarded = localStorage.getItem("isOnboarded") !== null;
-await init();
-/** @deprecated */
-// @ts-ignore
-const client = new Client(id ?? undefined, name ?? undefined, (...bleh) => {
-  console.warn("Received bridge request", bleh);
-});
 
 // const isLocalhost =
 //   window.location.hostname === "localhost" ||
@@ -34,13 +27,13 @@ export const messagesUrl = new URL("/messages/", window.location.origin);
 const [app, setApp] = createStore({
   name,
   // Client creates an id if there is none provided
-  get id() {
-    return client.id;
-  },
+  // get id() {
+  //   return client.id;
+  // },
   /**
    * @deprecated Use client through channel and single service worker instance instead
    */
-  client,
+  // client,
   /**
    * @type {Group[]}
    */

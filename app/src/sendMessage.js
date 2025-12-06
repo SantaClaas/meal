@@ -1,6 +1,7 @@
 /**
  *
  * @param {ServiceWorkerMessage} message
+ * @returns {Promise<void>}
  */
 export async function sendMessage(message) {
   if (!("serviceWorker" in navigator))
@@ -14,7 +15,9 @@ export async function sendMessage(message) {
 
 /**
  *
+ * @template T
  * @param {ServiceWorkerRequest} message
+ * @returns {Promise<T>}
  */
 export async function sendRequest(message) {
   if (!("serviceWorker" in navigator))
