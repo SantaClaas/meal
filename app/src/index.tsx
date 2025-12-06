@@ -12,7 +12,9 @@ import Chat from "./routes/chat";
 import Camera from "./components/Camera";
 import Preview from "./components/Preview";
 import Debug from "./routes/debug";
+import { version } from "../../package.json";
 
+declare const __GIT_COMMIT_HASH__: string;
 render(
   () => (
     <AppContextProvider>
@@ -32,6 +34,10 @@ render(
         <Route path="/chat/:groupId" component={Chat} />
         <Route path="/debug" component={Debug} />
       </Router>
+
+      <span class="absolute bottom-4 left-4 text-xs text-reduced-contrast-on-surface-variant">
+        {version}+{__GIT_COMMIT_HASH__}
+      </span>
     </AppContextProvider>
   ),
   document.body
