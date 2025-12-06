@@ -107,8 +107,17 @@ const messagesUrl = new URL("/messages/", self.location.origin);
 
 const handler = {
   async getIsOnboarded() {
+    console.debug("[Service worker] Getting isOnboarded");
     const configuration = await getConfiguration();
     return configuration.isOnboarded;
+  },
+
+  async completeOnboarding(name: string) {
+    console.debug("[Service worker]: completing onboarding", name);
+    const database = await openDatabase;
+    const transaction = database.transaction("configuration", "readwrite");
+    const store = transaction.objectStore("configuration");
+    store.put({ isOnboarded: true, name });
   },
 };
 
@@ -117,7 +126,7 @@ export type Handler = typeof handler;
 async function handleMessage(
   event: MessageEvent<{ type: "initializeCrackle" }>
 ) {
-  console.debug("Service worker: received message", event.data.type);
+  console.debug(`[Service worker] Handling message "${event.data.type}"`);
 
   switch (event.data.type) {
     case "initializeCrackle": {
@@ -129,3 +138,12 @@ async function handleMessage(
 }
 
 self.addEventListener("message", handleMessage);
+self.addEventListener("install", () => {
+  console.debug("Forcing service worker to become active");
+  return self.skipWaiting();
+});
+// Take over the message channels from the previous service worker
+self.addEventListener("activate", () => {
+  console.debug("Taking over message channels");
+  return self.clients.claim();
+});

@@ -3,7 +3,10 @@
  * Inspired by comlink.
  */
 
-// This type is written using GPT-4.1
+/**
+ * Turn every property into a promise without wrapping existing promises as accessing it will be done through a message channel and is thus async.
+ * This type is written using GPT-4.1
+ */
 type Promisify<T> = {
   [K in keyof T]: T[K] extends (...args: any[]) => infer R
     ? R extends Promise<any>
@@ -48,15 +51,20 @@ export function expose<T extends object>(target: T, port: MessagePort) {
       responsePort.postMessage(response);
     }
   );
+
+  port.postMessage("ready");
 }
 
-export function wrap<T extends object>(port: MessagePort): Promisify<T> {
+export async function proxy<T extends object>(
+  port: MessagePort
+): Promise<Promisify<T>> {
   const handler: ProxyHandler<T> = {
-    get(target, property, receiver) {
+    get(_target, property, _receiver) {
       // When the proxy gets returned in a promise, that promise checks for the existence of the "then" property
       // If it exists it will treat this proxy as promise but we don't want that.
       // This enables JS async functions to return a promise without that promise gettting wrapped in a promise itself.
       // But the logic for that sadly checks for the existence of the "then" property on the proxy
+      // Could do Reflect.get(...) but we know it is just an empty object so we can just return undefined
       if (property === "then") return undefined;
 
       return async (...parameters: unknown[]) => {
@@ -77,5 +85,23 @@ export function wrap<T extends object>(port: MessagePort): Promisify<T> {
   };
 
   // We have to lie to TypeScript here that this will work
-  return new Proxy({}, handler) as Promisify<T>;
+  const proxy = new Proxy({}, handler) as Promisify<T>;
+  const ready = new Promise<void>((resolve) => {
+    const listening = new AbortController();
+    port.addEventListener(
+      "message",
+      (message: MessageEvent<"ready">) => {
+        if (message.data === "ready") {
+          listening.abort();
+          resolve();
+        }
+      },
+      { signal: listening.signal }
+    );
+  });
+
+  port.start();
+  await ready;
+
+  return proxy;
 }
