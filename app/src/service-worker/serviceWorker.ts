@@ -45,29 +45,25 @@ async function getConfiguration(): Promise<Schema["configuration"]> {
   return configuration;
 }
 
-async function persistClient(client: Uint8Array) {
-  // Persist client state
-  const directory = await navigator.storage.getDirectory();
-
-  const FILE_NAME = "client.meal";
-
-  let fileHandle: FileSystemFileHandle | undefined;
+async function getFile(
+  directory: FileSystemDirectoryHandle,
+  fileName: string
+): Promise<FileSystemFileHandle | undefined> {
   try {
-    fileHandle = await directory.getFileHandle(FILE_NAME);
+    return await directory.getFileHandle(fileName);
   } catch (error) {
     // Finding out if the file does not exist is a bit unergonomic
     if (!(error instanceof DOMException) || error.name !== "NotFoundError")
       throw error;
-
-    console.debug("No client.meal file found");
   }
+}
 
-  if (fileHandle !== undefined) {
-    const file = await fileHandle.getFile();
-    return new Uint8Array(await file.arrayBuffer());
-  }
+const FILE_NAME = "client.meal";
+async function persistClient(client: Uint8Array) {
+  // Persist client state
+  const directory = await navigator.storage.getDirectory();
 
-  fileHandle = await directory.getFileHandle(FILE_NAME, {
+  const fileHandle = await directory.getFileHandle(FILE_NAME, {
     create: true,
   });
 
@@ -81,15 +77,28 @@ async function persistClient(client: Uint8Array) {
     writeStream.close();
   }
 
+  console.debug("[Service worker]: Stored client with length", client.length);
+
   return client;
 }
 
 async function initializeClient(): Promise<Uint8Array> {
-  const configuration = await getConfiguration();
   // Have to use wasm-pack --target web to build the wasm package to get the init function because with the bundler target
   // it is included as a top level await which is not supported by service workers according to the web spec
+  // Has to be initialized before we do anything with the Rust code. It also needs to be initialized if a client exists
   await init();
 
+  // Try to load existing client
+  const directory = await navigator.storage.getDirectory();
+  const fileHandle = await getFile(directory, FILE_NAME);
+
+  if (fileHandle !== undefined) {
+    const file = await fileHandle.getFile();
+    return new Uint8Array(await file.arrayBuffer());
+  }
+
+  // Create new client
+  const configuration = await getConfiguration();
   const client = create_client(
     configuration.clientId,
     configuration.user?.name
@@ -98,11 +107,11 @@ async function initializeClient(): Promise<Uint8Array> {
   return await persistClient(client);
 }
 
-let setupClient = initializeClient();
+let getClient = initializeClient();
 
 async function updateClient(client: Uint8Array) {
-  setupClient = persistClient(client);
-  await setupClient;
+  getClient = persistClient(client);
+  await getClient;
 }
 
 /** The url for messages endpoint. Don't forget the trailing slash. */
@@ -125,7 +134,7 @@ const handler = {
   },
 
   async createInvite() {
-    const client = await setupClient;
+    const client = await getClient;
     // The getter should clone the data so we can free the memory
     const result = create_invite(client);
     const { invite_payload, client: newClient } = result;
