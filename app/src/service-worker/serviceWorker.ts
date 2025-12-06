@@ -2,6 +2,7 @@ import { precacheAndRoute } from "workbox-precaching";
 import { openDB } from "idb";
 import init, { create_client } from "meal-core";
 import { expose } from "../crackle";
+import { Schema } from "./schema";
 
 /**
  * @import { Schema } from "./schema"
@@ -33,8 +34,7 @@ openDatabase.then((database) => {
   store.add({ isOnboarded: false });
 });
 
-/** @returns {Promise<Schema["configuration"]>} */
-async function getConfiguration() {
+async function getConfiguration(): Promise<Schema["configuration"]> {
   // Get configuration
   const database = await openDatabase;
   const transaction = database.transaction("configuration", "readonly");

@@ -36,6 +36,7 @@ export function expose<T extends object>(target: T, port: MessagePort) {
       const { property, parameters } = event.data;
       const responsePort = event.ports[0];
       const targetProperty = Reflect.get(target, property, target);
+
       if (typeof targetProperty !== "function") {
         responsePort.postMessage(targetProperty);
         return;
@@ -52,6 +53,7 @@ export function expose<T extends object>(target: T, port: MessagePort) {
     }
   );
 
+  port.start();
   port.postMessage("ready");
 }
 
