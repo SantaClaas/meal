@@ -149,6 +149,7 @@ const handler = {
     const { invite_payload, client: newClient } = result;
     result.free();
 
+    //TODO fix invite storage/memory leak
     // Persisting the client does not block us from responding
     void updateClient(newClient);
 
