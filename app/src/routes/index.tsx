@@ -193,6 +193,7 @@ export default function Index() {
     setIsOnboarded(true);
   }
 
+  //TODO fix flashing while loading onboarding
   createEffect(() => console.debug("Is onboarded?", isOnboarded()));
   return (
     <Show
@@ -200,13 +201,6 @@ export default function Index() {
       fallback={<Onboarding setName={setName} />}
     >
       <>
-        {/* <nav class="row-start-3 sm:row-start-1 sm:col-start-1"></nav>
-        <main class="grid sm:col-span-3 sm:row-span-3 sm:grid-rows-subgrid sm:grid-cols-subgrid overflow-hidden sm:pb-6">
-          <article class="hidden content-center sm:mt-4 isolate row-span-2 sm:col-start-3 sm:row-start-1 sm:block bg-light-surface dark:bg-dark-surface rounded-extra-large p-6">
-            {properties.children}
-          </article>
-        </main> */}
-
         <main class="grid grid-rows-[auto_1fr] h-full w-full bg-surface">
           <ChatList />
           <FloatingActionButton />
