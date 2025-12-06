@@ -117,7 +117,8 @@ const handler = {
     const database = await openDatabase;
     const transaction = database.transaction("configuration", "readwrite");
     const store = transaction.objectStore("configuration");
-    store.put({ isOnboarded: true, name });
+    const cursor = await store.openCursor();
+    cursor?.update({ isOnboarded: true, name });
   },
 };
 
