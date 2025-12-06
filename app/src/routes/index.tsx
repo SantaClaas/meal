@@ -2,7 +2,7 @@ import { createEffect, createResource, For, Show } from "solid-js";
 import Onboarding from "../components/Onboarding";
 import { useAppContext } from "../components/AppContext";
 import TopAppBar from "../components/TopAppBar";
-import { wrap } from "../crackle";
+import { proxy } from "../crackle";
 import { type Handler } from "../service-worker/serviceWorker";
 // https://devblogs.microsoft.com/typescript/announcing-typescript-5-5/#the-jsdoc-@import-tag
 /** @import { Signal, JSX, Accessor, ParentProps } from "solid-js" */
@@ -169,11 +169,11 @@ async function initializeCrackle() {
   };
 
   const worker = await navigator.serviceWorker.ready;
+  // Should not happen as we just awaited the ready promise
   if (worker.active === null) throw new Error("No active service worker");
   worker.active.postMessage(message, [port1]);
-  console.debug("Port", port2);
-  const wrapper = wrap<Handler>(port2);
-  console.debug("Wrapper", wrapper);
+  const wrapper = await proxy<Handler>(port2);
+  console.debug("Crackle", wrapper.getIsOnboarded);
   return wrapper;
 }
 
@@ -186,9 +186,12 @@ export default function Index() {
   });
 
   async function setName(name: string) {
-    const isOnboarded = await sendRequest({ type: "completeOnboarding", name });
-    console.debug("Is onboarded response?", isOnboarded);
-    setIsOnboarded(isOnboarded);
+    console.debug("Setting name", name, crackled);
+    const crackle = await crackled;
+    console.debug("Setting name", crackled);
+    await crackle.completeOnboarding(name);
+    console.debug("Name set");
+    setIsOnboarded(true);
   }
 
   createEffect(() => console.debug("Is onboarded?", isOnboarded()));
