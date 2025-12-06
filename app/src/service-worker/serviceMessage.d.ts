@@ -1,38 +1,30 @@
-type SendMessageRequest = {
-  type: "sendMessage";
-  groupId: string;
-  friendId: string;
-  sent: Date;
-  text: string;
+type CompleteOnboardingRequest = {
+  type: "completeOnboarding";
+  name: string;
 };
 
-type CreateInviteRequest = {
-  type: "createInvite";
+type CompleteOnboardingResponse = {
+  type: "completeOnboarding";
 };
 
-type InitializePortRequest = {
-  type: "initializePort";
+type GetIsOnboardedRequest = {
+  type: "getIsOnboarded";
 };
 
-type InitializePortResponse = {
-  type: "portInitialized";
-};
-
-type CreateInviteResponse = {
-  type: "inviteUrl";
-  inviteUrl: string;
+type GetIsOnboardedResponse = {
+  type: "isOnboarded";
+  isOnboarded: boolean;
 };
 
 /**
  * A message sent to the service worker from a browsing context.
  * Expects a response. (synchronous)
  */
-type ServiceWorkerRequest =
-  | InitializePortRequest
-  | SendMessageRequest
-  | CreateInviteRequest;
+type ServiceWorkerRequest = GetIsOnboardedRequest | CompleteOnboardingRequest;
 
-type ServiceWorkerResponse = InitializePortResponse | CreateInviteResponse;
+type ServiceWorkerResponse =
+  | GetIsOnboardedResponse
+  | CompleteOnboardingResponse;
 
 type InviteFromPackage = {
   type: "inviteFromPackage";

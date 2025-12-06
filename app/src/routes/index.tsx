@@ -1,11 +1,11 @@
-import { For, Show } from "solid-js";
+import { createEffect, createResource, For, Show } from "solid-js";
 import Onboarding from "../components/Onboarding";
 import { useAppContext } from "../components/AppContext";
 import TopAppBar from "../components/TopAppBar";
-//@ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
+import { wrap } from "../crackle";
+import { type Handler } from "../service-worker/serviceWorker";
 // https://devblogs.microsoft.com/typescript/announcing-typescript-5-5/#the-jsdoc-@import-tag
 /** @import { Signal, JSX, Accessor, ParentProps } from "solid-js" */
-//@ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
 /** @import { Message } from "../components/AppContext" */
 
 function FloatingActionButton() {
@@ -141,21 +141,61 @@ function ChatList() {
     </section>
   );
 }
-/** @param {ParentProps} _properties */
-export default function Index(_properties) {
-  const [app, setApp] = useAppContext();
 
+/**
+ * @import { ComlinkExposed } from "../service-worker/serviceWorker"
+ */
+// async function initializeComlink() {
+//   const { port1, port2 } = new MessageChannel();
+//   const message = {
+//     type: "initializeComlink",
+//   };
+
+//   const worker = await navigator.serviceWorker.ready;
+//   if (worker.active === null) throw new Error("No active service worker");
+//   worker.active.postMessage(message, [port1]);
+//   const comlink = /** @type {Comlink.Remote<ComlinkExposed>} */ (
+//     Comlink.wrap(port2)
+//   );
+//   console.debug("Comlink", comlink.getIsOnboarded);
+//   const isOnboarded = await comlink.getIsOnboarded();
+//   console.debug("Is onboarded?", isOnboarded);
+// }
+
+async function initializeCrackle() {
+  const { port1, port2 } = new MessageChannel();
+  const message = {
+    type: "initializeCrackle",
+  };
+
+  const worker = await navigator.serviceWorker.ready;
+  if (worker.active === null) throw new Error("No active service worker");
+  worker.active.postMessage(message, [port1]);
+  console.debug("Port", port2);
+  const wrapper = wrap<Handler>(port2);
+  console.debug("Wrapper", wrapper);
+  return wrapper;
+}
+
+const crackled = initializeCrackle();
+
+export default function Index() {
+  const [isOnboarded, { mutate: setIsOnboarded }] = createResource(async () => {
+    const crackle = await crackled;
+    return await crackle.getIsOnboarded();
+  });
+
+  async function setName(name: string) {
+    const isOnboarded = await sendRequest({ type: "completeOnboarding", name });
+    console.debug("Is onboarded response?", isOnboarded);
+    setIsOnboarded(isOnboarded);
+  }
+
+  createEffect(() => console.debug("Is onboarded?", isOnboarded()));
   return (
     <Show
-      when={app.isOnboarded}
-      fallback={
-        <Onboarding
-          setName={(name) => {
-            setApp("name", name);
-            setApp("isOnboarded", true);
-          }}
-        />
-      }
+      when={isOnboarded.state === "ready" && isOnboarded()}
+      fallback={<Onboarding setName={setName} />}
     >
       <>
         {/* <nav class="row-start-3 sm:row-start-1 sm:col-start-1"></nav>
