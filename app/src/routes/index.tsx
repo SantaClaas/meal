@@ -2,8 +2,7 @@ import { createEffect, createResource, For, Show } from "solid-js";
 import Onboarding from "../components/Onboarding";
 import { useAppContext } from "../components/AppContext";
 import TopAppBar from "../components/TopAppBar";
-import { proxy } from "../crackle";
-import { type Handler } from "../service-worker/serviceWorker";
+import { setupCrackle } from "../useCrackle";
 // https://devblogs.microsoft.com/typescript/announcing-typescript-5-5/#the-jsdoc-@import-tag
 /** @import { Signal, JSX, Accessor, ParentProps } from "solid-js" */
 /** @import { Message } from "../components/AppContext" */
@@ -142,54 +141,15 @@ function ChatList() {
   );
 }
 
-/**
- * @import { ComlinkExposed } from "../service-worker/serviceWorker"
- */
-// async function initializeComlink() {
-//   const { port1, port2 } = new MessageChannel();
-//   const message = {
-//     type: "initializeComlink",
-//   };
-
-//   const worker = await navigator.serviceWorker.ready;
-//   if (worker.active === null) throw new Error("No active service worker");
-//   worker.active.postMessage(message, [port1]);
-//   const comlink = /** @type {Comlink.Remote<ComlinkExposed>} */ (
-//     Comlink.wrap(port2)
-//   );
-//   console.debug("Comlink", comlink.getIsOnboarded);
-//   const isOnboarded = await comlink.getIsOnboarded();
-//   console.debug("Is onboarded?", isOnboarded);
-// }
-
-async function initializeCrackle() {
-  const { port1, port2 } = new MessageChannel();
-  const message = {
-    type: "initializeCrackle",
-  };
-
-  const worker = await navigator.serviceWorker.ready;
-  // Should not happen as we just awaited the ready promise
-  if (worker.active === null) throw new Error("No active service worker");
-  worker.active.postMessage(message, [port1]);
-  const wrapper = await proxy<Handler>(port2);
-  return wrapper;
-}
-
-const crackled = initializeCrackle();
-
 export default function Index() {
   const [isOnboarded, { mutate: setIsOnboarded }] = createResource(async () => {
-    const crackle = await crackled;
+    const crackle = await setupCrackle;
     return await crackle.getIsOnboarded();
   });
 
   async function setName(name: string) {
-    console.debug("Setting name", name, crackled);
-    const crackle = await crackled;
-    console.debug("Setting name 2");
+    const crackle = await setupCrackle;
     await crackle.completeOnboarding(name);
-    console.debug("Name set");
     setIsOnboarded(true);
   }
 

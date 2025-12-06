@@ -7,13 +7,14 @@
 
 use std::{collections::HashSet, rc::Rc};
 
+use base64::prelude::*;
 use nanoid::nanoid;
 use openmls::prelude::*;
 use openmls_basic_credential::SignatureKeyPair;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::{JsError, prelude::wasm_bindgen};
 
-use crate::{CIPHERSUITE, ID_LENGTH, v2::provider::Provider};
+use crate::{CIPHERSUITE, ID_LENGTH, encode_application_id, v2::provider::Provider};
 
 #[derive(Serialize, Deserialize)]
 struct User {
@@ -29,6 +30,9 @@ struct Client {
     /// We only store the group ids because the groups themselves are not serializable.
     /// The group state can be retrieved from the storage provider using the group id.
     groups: HashSet<GroupId>,
+
+    /// Need to be kept for later reference
+    key_packages: Vec<KeyPackage>,
     provider: Provider,
 }
 
@@ -41,8 +45,8 @@ pub fn create_client(id: Option<String>, name: Option<String>) -> Result<Vec<u8>
 
     //TODO Basic credentials only for tests and demo
     let credential: Credential = BasicCredential::new(client_id.clone().into_bytes()).into();
-    let signature_keys = SignatureKeyPair::new(CIPHERSUITE.signature_algorithm()).unwrap();
-    signature_keys.store(provider.storage()).unwrap();
+    let signature_keys = SignatureKeyPair::new(CIPHERSUITE.signature_algorithm())?;
+    signature_keys.store(provider.storage())?;
 
     let credential = CredentialWithKey {
         credential,
@@ -59,8 +63,49 @@ pub fn create_client(id: Option<String>, name: Option<String>) -> Result<Vec<u8>
         id: client_id.into(),
         user,
         groups: HashSet::new(),
+        key_packages: Vec::new(),
         provider,
     };
 
-    postcard::to_allocvec(&client).map_err(JsError::from)
+    Ok(postcard::to_allocvec(&client)?)
+}
+
+#[wasm_bindgen(getter_with_clone)]
+pub struct InviteResult {
+    pub client: Box<[u8]>,
+    pub invite_payload: String,
+}
+
+#[wasm_bindgen]
+pub fn create_invite(client: &[u8], user_name: Option<String>) -> Result<InviteResult, JsError> {
+    let mut client: Client = postcard::from_bytes(client)?;
+
+    //TODO think about ways to reduce size of key package to generate smaller invite links
+    //TODO like using a non self describing serialization format and remove
+    //TODO and remove things that do not change or where we use a default
+    //TODO adding postcard as dependency yields 9-10% smaller serialized + base64 encoded key packages
+
+    let extensions = encode_application_id(&client.id, &user_name);
+
+    // Add identifier to help users identify the origin of the key package / invitation
+    // Details: https://www.rfc-editor.org/rfc/rfc9420.html#section-5.3.3
+
+    let bundle = KeyPackage::builder()
+        .key_package_extensions(extensions)
+        .build(
+            CIPHERSUITE,
+            &client.provider,
+            &client.user.signature_key,
+            client.user.credential.clone(),
+        )?;
+
+    client.key_packages.push(bundle.key_package().clone());
+    let client = postcard::to_allocvec(&client)?.into();
+    // Using postcard reduces the size by around 40 bytes or 9-10%
+    // This might not be worth the dependency but we are using it for application messages anyways
+    let data = postcard::to_allocvec(bundle.key_package())?;
+    Ok(InviteResult {
+        client,
+        invite_payload: BASE64_URL_SAFE_NO_PAD.encode(data),
+    })
 }

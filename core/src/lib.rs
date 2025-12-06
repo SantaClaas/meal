@@ -72,7 +72,8 @@ enum Message {
     },
 }
 
-fn encode_application_id(mut id: String, name: &Option<String>) -> Extensions {
+fn encode_application_id(id: &str, name: &Option<String>) -> Extensions {
+    let mut id = id.to_owned();
     if let Some(name) = name {
         id.push_str(name);
     }
@@ -158,7 +159,7 @@ impl Client {
         //TODO and remove things that do not change or where we use a default
         //TODO adding postcard as dependency yields 9-10% smaller serialized + base64 encoded key packages
 
-        let extensions = encode_application_id(self.id.clone(), &name);
+        let extensions = encode_application_id(&self.id, &name);
 
         // Add identifier to help users identify the origin of the key package / invitation
         // Details: https://www.rfc-editor.org/rfc/rfc9420.html#section-5.3.3
