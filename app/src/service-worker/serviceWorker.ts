@@ -44,7 +44,9 @@ async function getConfiguration(): Promise<Schema["configuration"]> {
   const configuration = /** @type {Schema["configuration"]} */ cursor?.value;
   return configuration;
 }
-
+/**
+ * Convenience function to make get a file from a directory more ergonomic without failing if the file does not exist.
+ */
 async function getFile(
   directory: FileSystemDirectoryHandle,
   fileName: string
@@ -52,13 +54,16 @@ async function getFile(
   try {
     return await directory.getFileHandle(fileName);
   } catch (error) {
-    // Finding out if the file does not exist is a bit unergonomic
     if (!(error instanceof DOMException) || error.name !== "NotFoundError")
       throw error;
   }
 }
 
 const FILE_NAME = "client.meal";
+const fileSizeFormatter = new Intl.NumberFormat(undefined, {
+  unit: "megabyte",
+});
+
 async function persistClient(client: Uint8Array) {
   // Persist client state
   const directory = await navigator.storage.getDirectory();
@@ -77,7 +82,11 @@ async function persistClient(client: Uint8Array) {
     writeStream.close();
   }
 
-  console.debug("[Service worker]: Stored client with length", client.length);
+  console.debug(
+    `[Service worker]: Stored client with length ${fileSizeFormatter.format(
+      client.length
+    )}`
+  );
 
   return client;
 }
