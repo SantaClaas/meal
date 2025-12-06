@@ -3,9 +3,14 @@ import solid from "vite-plugin-solid";
 import wasm from "vite-plugin-wasm";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA as vitePwa } from "vite-plugin-pwa";
+import { execSync } from "node:child_process";
 /** @import { defineConfig } from "vite"; */
 
+const gitHash = execSync("git rev-parse --short HEAD").toString().trim();
 export default defineConfig({
+  define: {
+    __GIT_COMMIT_HASH__: JSON.stringify(gitHash),
+  },
   plugins: [
     tailwindcss(),
     solid(),
