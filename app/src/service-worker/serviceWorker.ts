@@ -4,6 +4,7 @@ import init, {
   create_client,
   create_invite,
   decode_key_package,
+  Friend,
 } from "meal-core";
 import { expose } from "../crackle";
 import { Schema } from "./schema";
@@ -111,11 +112,7 @@ async function initializeClient(): Promise<Uint8Array> {
   }
 
   // Create new client
-  const configuration = await getConfiguration();
-  const client = create_client(
-    configuration.clientId,
-    configuration.user?.name
-  );
+  const client = create_client();
 
   return await persistClient(client);
 }
@@ -137,23 +134,39 @@ const handler = {
     return configuration.isOnboarded;
   },
 
+  getConfiguration,
+  async setName(name: string) {
+    const database = await openDatabase;
+    const transaction = database.transaction("configuration", "readwrite");
+    const store = transaction.objectStore("configuration");
+    const cursor = await store.openCursor();
+    if (cursor === null) throw new Error("Expected query to return a cursor");
+    cursor.update({ user: { name } });
+  },
+
   async completeOnboarding(name: string) {
     console.debug("[Service worker]: completing onboarding", name);
     const database = await openDatabase;
     const transaction = database.transaction("configuration", "readwrite");
     const store = transaction.objectStore("configuration");
     const cursor = await store.openCursor();
-    cursor?.update({ isOnboarded: true, name });
+    if (cursor === null) throw new Error("Expected query to return a cursor");
+    cursor.update({ isOnboarded: true, name });
   },
 
+  //TODO make providing name optional for invite
   async createInvite() {
-    const client = await getClient;
+    const [client, configuration] = await Promise.all([
+      getClient,
+      getConfiguration(),
+    ]);
+
+    //TODO fix invite storage/memory leak from creating and adding new key packages without removing them
+    const result = create_invite(client, configuration.user?.name);
     // The getter should clone the data so we can free the memory
-    const result = create_invite(client);
     const { invite_payload, client: newClient } = result;
     result.free();
 
-    //TODO fix invite storage/memory leak
     // Persisting the client does not block us from responding
     void updateClient(newClient);
 
@@ -164,9 +177,17 @@ const handler = {
   async decodeKeyPackage(encodedInvite: string) {
     const client = await getClient;
 
-    const result = decode_key_package(client, encodedInvite);
+    return decode_key_package(client, encodedInvite);
+  },
 
-    return result;
+  /**
+   * @param friend The friend to chat with in the group
+   * @param name The name the user wants to appear as in the group
+   */
+  async createGroup(friend: Friend, name: string) {
+    //TODO create group with core
+    //TODO persist group with id from core
+    //TODO return group
   },
 };
 

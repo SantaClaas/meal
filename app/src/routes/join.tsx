@@ -1,7 +1,6 @@
-import { Navigate, useNavigate, useParams } from "@solidjs/router";
+import { Navigate, useParams } from "@solidjs/router";
 import { createResource, JSX, Match, Switch } from "solid-js";
 import { useAppContext } from "../components/AppContext";
-import { sendMessage } from "../sendMessage";
 import { setupCrackle } from "../useCrackle";
 
 async function decodeKeyPackage(encodedInvite: string) {
@@ -10,6 +9,10 @@ async function decodeKeyPackage(encodedInvite: string) {
   return result;
 }
 
+/**
+ * This page opens after the user opens an invite link.
+ * It can be the very first time they open the app
+ */
 export default function Join() {
   const parameters = useParams();
 
@@ -21,34 +24,37 @@ export default function Join() {
 
   const [keyPackage] = createResource(parameters.package, decodeKeyPackage);
 
-  const navigate = useNavigate();
+  const [configuration] = createResource(async () => {
+    const handle = await setupCrackle;
+    return await handle.getConfiguration();
+  });
+
   async function handleDecision(
     event: Parameters<JSX.EventHandler<HTMLFormElement, SubmitEvent>>[0]
   ) {
     event.preventDefault();
+    const handle = await setupCrackle;
 
     const name =
       /** @type {HTMLInputElement} */ event.currentTarget.username.value;
 
-    sendMessage({
-      type: "inviteFromPackage",
-      user: {
-        name,
-      },
-      package: parameters.package,
-    });
+    //TODO make this more elegant
+    const currentConfiguration = configuration();
+    if (currentConfiguration === undefined)
+      throw new Error("Expected configuration to be loaded");
 
-    return;
-    // Complete onboarding if used for the first time
-    if (name && name !== app.name) {
-      setApp("name", name);
+    if (name && !currentConfiguration.isOnboarded)
+      await handle.completeOnboarding(name);
+    if (name) {
+      //TODO support name per group
+      if (currentConfiguration.isOnboarded) await handle.setName(name);
+      // Complete onboarding if used for the first time
+      else await handle.completeOnboarding(name);
     }
 
     const keys = keyPackage();
-    if (keys === undefined) {
-      console.error("Expected key package to be defined");
-      return;
-    }
+    if (keys === undefined)
+      throw new Error("Expected key package to be loaded");
 
     // const groupId = app.client.create_group();
     // /** @type {Group} */
@@ -82,6 +88,7 @@ export default function Join() {
     // navigate(`/chat/${groupId}`);
   }
 
+  //TODO show confirm dialog if they want to stay anonymous
   return (
     <>
       <h1>Invitation</h1>
@@ -93,12 +100,9 @@ export default function Join() {
         </Match>
 
         <Match when={keyPackage()?.friend.name}>
-          {
-            /** @type {(item: Accessor<NonNullable<string>>) => JSX.Element} */
-            (friendName) => (
-              <p>{friendName()} has invited you to chat with them</p>
-            )
-          }
+          {(friendName) => (
+            <p>{friendName()} has invited you to chat with them</p>
+          )}
         </Match>
         <Match when={!keyPackage()?.friend.name}>
           {/* TODO add additional information that the person that has sent the invite chose to not include their name
@@ -121,7 +125,8 @@ export default function Join() {
           id="username"
           autocomplete="username"
           required
-          value={app.name ?? ""}
+          disabled={configuration.loading}
+          value={configuration()?.user?.name}
         />
 
         <button type="submit" name="accept">

@@ -20,7 +20,6 @@ use crate::{
 
 #[derive(Serialize, Deserialize)]
 struct User {
-    name: Option<String>,
     credential: CredentialWithKey,
     signature_key: SignatureKeyPair,
 }
@@ -39,11 +38,11 @@ struct Client {
 }
 
 #[wasm_bindgen]
-pub fn create_client(id: Option<String>, name: Option<String>) -> Result<Vec<u8>, JsError> {
+pub fn create_client() -> Result<Vec<u8>, JsError> {
     console_error_panic_hook::set_once();
 
     let provider = Provider::default();
-    let client_id = id.unwrap_or_else(|| nanoid!(ID_LENGTH));
+    let client_id = nanoid!(ID_LENGTH);
 
     //TODO Basic credentials only for tests and demo
     let credential: Credential = BasicCredential::new(client_id.clone().into_bytes()).into();
@@ -56,7 +55,6 @@ pub fn create_client(id: Option<String>, name: Option<String>) -> Result<Vec<u8>
     };
 
     let user = User {
-        name: name.into(),
         credential,
         signature_key: signature_keys,
     };
