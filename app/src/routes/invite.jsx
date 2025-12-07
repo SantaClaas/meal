@@ -1,10 +1,11 @@
 import { useNavigate } from "@solidjs/router";
-import { useAppContext } from "../components/AppContext";
 import { createEffect, createResource, createSignal, Show } from "solid-js";
 //TODO replace with SVG QR-Code solution. Maybe with something custom
 import QRCode from "qrcode";
 import { setupCrackle } from "../useCrackle";
-/** @import { JSX, EffectFunction, VoidProps, Signal } from "solid-js" */
+import { useBroadcast } from "../broadcast";
+import { ROUTES } from ".";
+/** @import { JSX, VoidProps, Signal } from "solid-js" */
 
 const FormElement = /** @type {const} */ ({
   IncludeName: "includeName",
@@ -16,7 +17,7 @@ const FormElement = /** @type {const} */ ({
 
 /**
  *
- * @param {VoidProps<{userName: string, ref: HTMLDialogElement | undefined}>} properties
+ * @param {VoidProps<{userName: string | undefined, ref: HTMLDialogElement | undefined}>} properties
  * @returns
  */
 function InviteSettingsDialog({ userName, ref }) {
@@ -68,29 +69,25 @@ function InviteSettingsDialog({ userName, ref }) {
   );
 }
 
+async function getConfiguration() {
+  const handle = await setupCrackle;
+  return await handle.getConfiguration();
+}
+
 export default function Invite() {
   const navigate = useNavigate();
 
   // Navigate to new group chat when invite is accepted (when it is added from processing incoming welcome)
-  createEffect(
-    // Using the groups (instead of length) as previous does not work because the reference does not change
-    /** @type {EffectFunction<number | undefined>}*/ (previousLength) => {
-      //TODO check if user has automatic accept enabled
-      //TODO check if this welcome is for this key package
-      if (previousLength === undefined) return app.groups.length;
+  useBroadcast((event) => {
+    if (event.data.type !== "Group created") return;
 
-      // Just take the last one added for now 🥴
-      // I need to think more about this and then rework it
-      if (previousLength >= app.groups.length) return app.groups.length;
-      // Just assume the last one is the last one added 🥴
-      const group = app.groups.at(-1);
-      if (group !== undefined) navigate(`/chat/${group.id}`);
+    //TODO check if user has automatic accept enabled
+    //TODO check if this welcome is for this key package
+    navigate(ROUTES.chat(event.data.group.id));
+  });
 
-      return app.groups.length;
-    }
-  );
+  const [configuration] = createResource(getConfiguration);
 
-  const [app] = useAppContext();
   /** @type {HTMLDialogElement | undefined} */
   let settingsDialog;
   /** @type { HTMLDivElement | undefined} */
@@ -193,7 +190,7 @@ export default function Invite() {
         </svg>
       </button>
 
-      <canvas width={200} height={200} ref={canvas} />
+      <canvas width={200} height={200} ref={canvas} class="rounded-2xl" />
 
       {/* Needs to be on click otherwise the pointer down opens it and the pointer up closes it immediately */}
       <button onPointerDown={copyInvite}>Copy</button>
@@ -203,7 +200,10 @@ export default function Invite() {
       <div popover="manual" ref={snackbar}>
         Link copied
       </div>
-      <InviteSettingsDialog userName={app.name ?? ""} ref={settingsDialog} />
+      <InviteSettingsDialog
+        userName={configuration()?.defaultUser?.name}
+        ref={settingsDialog}
+      />
     </>
   );
 }

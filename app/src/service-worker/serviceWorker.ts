@@ -3,6 +3,7 @@ import { openDB } from "idb";
 import init, { Client, DecodedPackage, Friend } from "meal-core";
 import { expose } from "../crackle";
 import { Group, Message, Schema } from "./schema";
+import { broadcastMessage } from "../broadcast";
 
 /**
  * @import { Schema } from "./schema"
@@ -302,6 +303,7 @@ async function receiveMessage(event: MessageEvent<ArrayBuffer>) {
         user: configuration.defaultUser,
       };
       await insertGroup(group);
+      broadcastMessage({ type: "Group created", group });
       return;
     }
     case "Private":
