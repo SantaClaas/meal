@@ -2,7 +2,7 @@ import { precacheAndRoute } from "workbox-precaching";
 import { openDB } from "idb";
 import init, { Client, DecodedPackage, Friend } from "meal-core";
 import { expose } from "../crackle";
-import { Group, Schema } from "./schema";
+import { Group, Message, Schema } from "./schema";
 
 /**
  * @import { Schema } from "./schema"
@@ -148,6 +148,27 @@ function assertNotShared(
     throw new Error("Uint8Array uses a SharedArrayBuffer");
 }
 
+async function getGroup(groupId: string): Promise<Group | undefined> {
+  const database = await openDatabase;
+  const transaction = database.transaction("groups", "readonly");
+  const store = transaction.objectStore("groups");
+  return await store.get(groupId);
+}
+
+async function updateGroup(group: Group) {
+  const database = await openDatabase;
+  const transaction = database.transaction("groups", "readwrite");
+  const store = transaction.objectStore("groups");
+  store.put(group);
+}
+
+async function insertGroup(group: Group) {
+  const database = await openDatabase;
+  const transaction = database.transaction("groups", "readwrite");
+  const store = transaction.objectStore("groups");
+  store.add(group);
+}
+
 const handler = {
   async getIsOnboarded() {
     console.debug("[Service worker] Getting isOnboarded");
@@ -216,11 +237,7 @@ const handler = {
       messages: [],
     };
 
-    const database = await openDatabase;
-    const transaction = database.transaction("groups", "readwrite");
-    const store = transaction.objectStore("groups");
-    store.add(group);
-
+    await insertGroup(group);
     return group;
   },
 
@@ -265,6 +282,42 @@ self.addEventListener("activate", () => {
 
 async function receiveMessage(event: MessageEvent<ArrayBuffer>) {
   const client = await getClient;
+  const message = client.process_message(new Uint8Array(event.data));
+  void updateClient(client);
+  switch (message.type) {
+    case "Welcome": {
+      console.debug("Processed welcome", message);
+      const configuration = await getConfiguration();
+      const group: Group = {
+        id: message.group_id,
+        friend: message.friend,
+        messages: [],
+        // TODO load user identity that theuser chose to be associated with the key package
+        user: configuration.defaultUser,
+      };
+      await insertGroup(group);
+      return;
+    }
+    case "Private":
+      {
+        console.debug("Processed private message", message);
+        const messageEntry: Message = {
+          receivedAt: new Date(),
+          sentAt: new Date(message.content.sent),
+          text: message.content.text,
+        };
+
+        const group = await getGroup(message.group_id);
+        if (group === undefined)
+          //TODO are we able to reconstruct the group?
+          throw new Error("Got message for group that does not exist");
+
+        // Assume it is sorted by time
+        group.messages.push(messageEntry);
+        await updateGroup(group);
+      }
+      return;
+  }
 }
 
 async function setupWebsocket() {
