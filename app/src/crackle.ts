@@ -26,6 +26,16 @@ type CrackleMessage = {
   parameters: unknown[];
 };
 
+type CallResult =
+  | {
+      result: unknown;
+      error?: never;
+    }
+  | {
+      result?: never;
+      error: unknown;
+    };
+
 /**
  * Proxy requests to the provided target object to the service worker
  */
@@ -41,20 +51,64 @@ export function expose<T extends object>(target: T, port: MessagePort) {
         responsePort.postMessage(targetProperty);
         return;
       }
+      let result: unknown | undefined;
+      try {
+        result = Reflect.apply(targetProperty, target, parameters);
+      } catch (error: unknown) {
+        // Transfer error to the client so that it aborts a failed operation the same way as the service worker would
+        // Error should be transferable
+        //TODO this is a naive implementation that assumes that the error of a type that is structured cloneable when it is in every sense unkown
+        responsePort.postMessage({ error } satisfies CallResult);
 
-      const result = Reflect.apply(targetProperty, target, parameters);
+        // Throw error so behavior is not altered by stopping the short circuit caused by the error
+        throw error;
+      }
+
       if (!(result instanceof Promise)) {
-        responsePort.postMessage(result);
+        responsePort.postMessage({ result } satisfies CallResult);
         return;
       }
 
-      const response = await result;
-      responsePort.postMessage(response);
+      try {
+        result = await result;
+      } catch (error) {
+        responsePort.postMessage({ error } satisfies CallResult);
+        throw error;
+      }
+
+      responsePort.postMessage({ result } satisfies CallResult);
     }
   );
 
   port.start();
   port.postMessage("ready");
+}
+
+class ServiceWorkerCallError extends Error {}
+
+function waitForResponse(port: MessagePort): Promise<unknown> {
+  return new Promise<unknown>((resolve, reject) => {
+    port.addEventListener(
+      "message",
+      (event: MessageEvent<CallResult>) => {
+        if ("result" in event.data) {
+          resolve(event.data.result);
+          return;
+        }
+
+        reject(
+          new ServiceWorkerCallError(
+            "The service worker side implementation of the resulted in an error",
+            // Error might not be the same as we sent it due to structured cloning and its limitations
+            { cause: event.data.error }
+          )
+        );
+      },
+      {
+        once: true,
+      }
+    );
+  });
 }
 
 export async function proxy<T extends object>(
@@ -71,12 +125,7 @@ export async function proxy<T extends object>(
 
       return async (...parameters: unknown[]) => {
         const { port1, port2 } = new MessageChannel();
-        const response = new Promise<unknown>((resolve) => {
-          port1.addEventListener("message", (event) => resolve(event.data), {
-            once: true,
-          });
-        });
-
+        const response = waitForResponse(port1);
         port.postMessage({ property, parameters } satisfies CrackleMessage, [
           port2,
         ]);
