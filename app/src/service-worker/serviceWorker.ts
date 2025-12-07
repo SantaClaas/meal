@@ -23,6 +23,12 @@ const openDatabase = /** @type {typeof openDB<Schema>} */ openDB("meal", 1, {
     if (!database.objectStoreNames.contains("configuration")) {
       database.createObjectStore("configuration", { autoIncrement: true });
     }
+    if (!database.objectStoreNames.contains("groups")) {
+      database.createObjectStore("groups", {
+        autoIncrement: true,
+        keyPath: "id",
+      });
+    }
   },
 });
 
