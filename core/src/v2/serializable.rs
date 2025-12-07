@@ -24,8 +24,16 @@ struct User {
     signature_key: SignatureKeyPair,
 }
 
+#[wasm_bindgen]
+#[derive(Debug, thiserror::Error)]
+pub enum CreateGroupError {
+    #[error("Group id already exists. This should not happen if the group id is created randomly")]
+    IdCollision,
+}
+
 #[derive(Serialize, Deserialize)]
-struct Client {
+#[wasm_bindgen]
+pub struct Client {
     id: Rc<str>,
     user: User,
     /// We only store the group ids because the groups themselves are not serializable.
@@ -38,108 +46,125 @@ struct Client {
 }
 
 #[wasm_bindgen]
-pub fn create_client() -> Result<Vec<u8>, JsError> {
-    console_error_panic_hook::set_once();
+impl Client {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Result<Self, JsError> {
+        console_error_panic_hook::set_once();
 
-    let provider = Provider::default();
-    let client_id = nanoid!(ID_LENGTH);
+        let provider = Provider::default();
+        let client_id = nanoid!(ID_LENGTH);
 
-    //TODO Basic credentials only for tests and demo
-    let credential: Credential = BasicCredential::new(client_id.clone().into_bytes()).into();
-    let signature_keys = SignatureKeyPair::new(CIPHERSUITE.signature_algorithm())?;
-    signature_keys.store(provider.storage())?;
+        //TODO Basic credentials only for tests and demo
+        let credential: Credential = BasicCredential::new(client_id.clone().into_bytes()).into();
+        let signature_keys = SignatureKeyPair::new(CIPHERSUITE.signature_algorithm())?;
+        signature_keys.store(provider.storage())?;
 
-    let credential = CredentialWithKey {
-        credential,
-        signature_key: signature_keys.public().into(),
-    };
+        let credential = CredentialWithKey {
+            credential,
+            signature_key: signature_keys.public().into(),
+        };
 
-    let user = User {
-        credential,
-        signature_key: signature_keys,
-    };
+        let user = User {
+            credential,
+            signature_key: signature_keys,
+        };
 
-    let client = Client {
-        id: client_id.into(),
-        user,
-        groups: HashSet::new(),
-        key_packages: Vec::new(),
-        provider,
-    };
+        let client = Client {
+            id: client_id.into(),
+            user,
+            groups: HashSet::new(),
+            key_packages: Vec::new(),
+            provider,
+        };
 
-    Ok(postcard::to_allocvec(&client)?)
-}
+        Ok(client)
+    }
 
-#[wasm_bindgen(getter_with_clone)]
-pub struct InviteResult {
-    pub client: Box<[u8]>,
-    pub invite_payload: String,
-}
+    pub fn serialize(&self) -> Result<Vec<u8>, JsError> {
+        Ok(postcard::to_allocvec(&self)?)
+    }
 
-#[wasm_bindgen]
-pub fn create_invite(client: &[u8], user_name: Option<String>) -> Result<InviteResult, JsError> {
-    let mut client: Client = postcard::from_bytes(client)?;
+    pub fn from_serialized(bytes: &[u8]) -> Result<Self, JsError> {
+        Ok(postcard::from_bytes(bytes)?)
+    }
 
-    //TODO think about ways to reduce size of key package to generate smaller invite links
-    //TODO like using a non self describing serialization format and remove
-    //TODO and remove things that do not change or where we use a default
-    //TODO adding postcard as dependency yields 9-10% smaller serialized + base64 encoded key packages
+    pub fn create_invite(&mut self, user_name: Option<String>) -> Result<String, JsError> {
+        //TODO think about ways to reduce size of key package to generate smaller invite links
+        //TODO like using a non self describing serialization format and remove
+        //TODO and remove things that do not change or where we use a default
+        //TODO adding postcard as dependency yields 9-10% smaller serialized + base64 encoded key packages
 
-    let extensions = encode_application_id(&client.id, &user_name);
+        let extensions = encode_application_id(&self.id, &user_name);
 
-    // Add identifier to help users identify the origin of the key package / invitation
-    // Details: https://www.rfc-editor.org/rfc/rfc9420.html#section-5.3.3
+        // Add identifier to help users identify the origin of the key package / invitation
+        // Details: https://www.rfc-editor.org/rfc/rfc9420.html#section-5.3.3
 
-    let bundle = KeyPackage::builder()
-        .key_package_extensions(extensions)
-        .build(
-            CIPHERSUITE,
-            &client.provider,
-            &client.user.signature_key,
-            client.user.credential.clone(),
-        )?;
+        let bundle = KeyPackage::builder()
+            .key_package_extensions(extensions)
+            .build(
+                CIPHERSUITE,
+                &self.provider,
+                &self.user.signature_key,
+                self.user.credential.clone(),
+            )?;
 
-    client.key_packages.push(bundle.key_package().clone());
-    let client = postcard::to_allocvec(&client)?.into();
-    // Using postcard reduces the size by around 40 bytes or 9-10%
-    // This might not be worth the dependency but we are using it for application messages anyways
-    let data = postcard::to_allocvec(bundle.key_package())?;
-    Ok(InviteResult {
-        client,
-        invite_payload: BASE64_URL_SAFE_NO_PAD.encode(data),
-    })
-}
+        self.key_packages.push(bundle.key_package().clone());
+        // Using postcard reduces the size by around 40 bytes or 9-10%
+        // This might not be worth the dependency but we are using it for application messages anyways
+        let data = postcard::to_allocvec(bundle.key_package())?;
+        Ok(BASE64_URL_SAFE_NO_PAD.encode(data))
+    }
 
-#[wasm_bindgen]
-pub fn decode_key_package(client: &[u8], encoded_invite: &str) -> Result<DecodedPackage, JsError> {
-    let data = BASE64_URL_SAFE_NO_PAD.decode(encoded_invite)?;
-    // let package = KeyPackageIn::tls_deserialize_exact_bytes(&data).unwrap();
-    let package: KeyPackageIn = postcard::from_bytes(&data)?;
+    pub fn decode_key_package(&self, encoded_invite: &str) -> Result<DecodedPackage, JsError> {
+        let data = BASE64_URL_SAFE_NO_PAD.decode(encoded_invite)?;
+        // let package = KeyPackageIn::tls_deserialize_exact_bytes(&data).unwrap();
+        let package: KeyPackageIn = postcard::from_bytes(&data)?;
 
-    let client: Client = postcard::from_bytes(client)?;
+        let validated = package.validate(self.provider.crypto(), ProtocolVersion::Mls10)?;
+        let id = validated
+            .extensions()
+            .application_id()
+            .map(|id| str::from_utf8(id.as_slice()))
+            .transpose()?
+            .ok_or_else(|| {
+                JsError::new("Invite did not contain an id to contact the other client with")
+            })?;
 
-    let validated = package.validate(client.provider.crypto(), ProtocolVersion::Mls10)?;
-    let id = validated
-        .extensions()
-        .application_id()
-        .map(|id| str::from_utf8(id.as_slice()))
-        .transpose()?
-        .ok_or_else(|| {
-            JsError::new("Invite did not contain an id to contact the other client with")
-        })?;
+        let (id, friend_name) = if id.len() > ID_LENGTH {
+            let (id, friend_name) = id.split_at(ID_LENGTH);
+            (id, Some(friend_name))
+        } else {
+            (id, None)
+        };
 
-    let (id, friend_name) = if id.len() > ID_LENGTH {
-        let (id, friend_name) = id.split_at(ID_LENGTH);
-        (id, Some(friend_name))
-    } else {
-        (id, None)
-    };
+        Ok(DecodedPackage {
+            friend: Friend {
+                id: id.to_owned(),
+                name: friend_name.map(str::to_owned),
+            },
+            key_package: validated,
+        })
+    }
 
-    Ok(DecodedPackage {
-        friend: Friend {
-            id: id.to_owned(),
-            name: friend_name.map(str::to_owned),
-        },
-        key_package: validated,
-    })
+    pub fn create_group(&mut self) -> Result<String, JsError> {
+        let group = MlsGroup::builder()
+            .use_ratchet_tree_extension(true)
+            // //TODO should we enforce usage of application id in the capabilities?
+            // .with_leaf_node_extensions(encode_application_id(self.id.clone(), &self.user.name))
+            // .unwrap()
+            .build(
+                &self.provider,
+                &self.user.signature_key,
+                self.user.credential.clone(),
+            )?;
+
+        let group_id = group.group_id();
+        if self.groups.contains(&group_id) {
+            return Err(CreateGroupError::IdCollision.into());
+        }
+        let js_group_id = BASE64_URL_SAFE_NO_PAD.encode(group_id.as_slice());
+
+        self.groups.insert(group_id.clone());
+        Ok(js_group_id)
+    }
 }

@@ -1,11 +1,6 @@
 import { precacheAndRoute } from "workbox-precaching";
 import { openDB } from "idb";
-import init, {
-  create_client,
-  create_invite,
-  decode_key_package,
-  Friend,
-} from "meal-core";
+import init, { Client, Friend } from "meal-core";
 import { expose } from "../crackle";
 import { Schema } from "./schema";
 
@@ -69,7 +64,7 @@ const fileSizeFormatter = new Intl.NumberFormat(undefined, {
   unit: "megabyte",
 });
 
-async function persistClient(client: Uint8Array) {
+async function persistClient(client: Client) {
   // Persist client state
   const directory = await navigator.storage.getDirectory();
 
@@ -78,25 +73,29 @@ async function persistClient(client: Uint8Array) {
   });
 
   const writeStream = await fileHandle.createWritable();
-  if (client.buffer instanceof SharedArrayBuffer)
-    throw new Error("Did not expect a SharedArrayBuffer");
+
+  const serializedClient = client.serialize();
+  if (serializedClient.buffer instanceof SharedArrayBuffer)
+    throw new Error(
+      "Did not expect a SharedArrayBuffer. Cannot write shared buffer to file"
+    );
 
   try {
-    await writeStream.write(client.buffer);
+    await writeStream.write(serializedClient.buffer);
   } finally {
     writeStream.close();
   }
 
   console.debug(
     `[Service worker]: Stored client with length ${fileSizeFormatter.format(
-      client.length
+      serializedClient.length
     )}`
   );
 
   return client;
 }
 
-async function initializeClient(): Promise<Uint8Array> {
+async function initializeClient(): Promise<Client> {
   // Have to use wasm-pack --target web to build the wasm package to get the init function because with the bundler target
   // it is included as a top level await which is not supported by service workers according to the web spec
   // Has to be initialized before we do anything with the Rust code. It also needs to be initialized if a client exists
@@ -108,18 +107,19 @@ async function initializeClient(): Promise<Uint8Array> {
 
   if (fileHandle !== undefined) {
     const file = await fileHandle.getFile();
-    return new Uint8Array(await file.arrayBuffer());
+    const buffer = await file.arrayBuffer();
+    return Client.from_serialized(new Uint8Array(buffer));
   }
 
   // Create new client
-  const client = create_client();
+  const client = new Client();
 
   return await persistClient(client);
 }
 
 let getClient = initializeClient();
 
-async function updateClient(client: Uint8Array) {
+async function updateClient(client: Client) {
   getClient = persistClient(client);
   await getClient;
 }
@@ -162,13 +162,10 @@ const handler = {
     ]);
 
     //TODO fix invite storage/memory leak from creating and adding new key packages without removing them
-    const result = create_invite(client, configuration.user?.name);
-    // The getter should clone the data so we can free the memory
-    const { invite_payload, client: newClient } = result;
-    result.free();
+    const invite_payload = client.create_invite(configuration.user?.name);
 
     // Persisting the client does not block us from responding
-    void updateClient(newClient);
+    void updateClient(client);
 
     const inviteUrl = new URL(`/join/${invite_payload}`, location.origin);
     return inviteUrl.href;
@@ -176,8 +173,8 @@ const handler = {
 
   async decodeKeyPackage(encodedInvite: string) {
     const client = await getClient;
-
-    return decode_key_package(client, encodedInvite);
+    //TODO make it more ergonomic to not needing to know when the client is mutated and needs to be persisted
+    return client.decode_key_package(encodedInvite);
   },
 
   /**
@@ -185,7 +182,10 @@ const handler = {
    * @param name The name the user wants to appear as in the group
    */
   async createGroup(friend: Friend, name: string) {
-    //TODO create group with core
+    const client = await getClient;
+    // const { client: newClient, group_id } = create_group(client);
+    const group_id = client.create_group();
+    await updateClient(client);
     //TODO persist group with id from core
     //TODO return group
   },
