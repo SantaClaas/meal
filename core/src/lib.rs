@@ -39,16 +39,16 @@ pub struct Client {
     provider: Provider,
 }
 
-#[derive(Tsify, serde::Serialize)]
-#[tsify(into_wasm_abi)]
+#[derive(Tsify, serde::Serialize, serde::Deserialize)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct DecodedPackage {
     /// The friend that sent the key package
     pub friend: Friend,
     key_package: KeyPackage,
 }
 
-#[derive(Tsify, serde::Serialize)]
-#[tsify(into_wasm_abi)]
+#[derive(Tsify, serde::Serialize, serde::Deserialize)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct Friend {
     pub id: String,
     pub name: Option<String>,
@@ -109,7 +109,7 @@ enum ApplicationMessage {
         /// The client id of the sender that send the welcome message
         id: String,
         /// The name of the user using the client that send the welcome message
-        name: Option<String>,
+        user_name: Option<String>,
     },
 }
 // #[wasm_bindgen]
@@ -235,7 +235,7 @@ impl Client {
         // Create introduction message as welcome does not include enough information that are needed on the application layer
         let introduction = ApplicationMessage::Introduction {
             id: self.id.clone(),
-            name: self.user.name.clone(),
+            user_name: self.user.name.clone(),
         };
         let data = postcard::to_allocvec(&introduction).unwrap();
         let message = group
@@ -320,8 +320,10 @@ impl Client {
             todo!("Handle processed message content");
         };
 
-        let ApplicationMessage::Introduction { id, name } =
-            postcard::from_bytes(&content.into_bytes()).unwrap();
+        let ApplicationMessage::Introduction {
+            id,
+            user_name: name,
+        } = postcard::from_bytes(&content.into_bytes()).unwrap();
 
         // Need to create id before moving group into map
         let js_group_id = BASE64_URL_SAFE_NO_PAD.encode(group.group_id().as_slice());
