@@ -262,3 +262,25 @@ self.addEventListener("activate", () => {
   console.debug("Taking over message channels");
   return self.clients.claim();
 });
+
+async function receiveMessage(event: MessageEvent<ArrayBuffer>) {
+  const client = await getClient;
+}
+
+async function setupWebsocket() {
+  // Assume client id does not change
+  const client = await getClient;
+
+  // https:// is automatically replaced with wss://
+  const socketUrl = new URL(client.id, messagesUrl);
+  const socket = new WebSocket(socketUrl);
+  socket.binaryType = "arraybuffer";
+  socket.addEventListener("message", receiveMessage);
+  socket.addEventListener("close", (event) => {
+    console.warn("Socket closed. Not implemented.", event);
+  });
+
+  return socket;
+}
+
+const getSocket = setupWebsocket();

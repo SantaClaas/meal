@@ -53,6 +53,13 @@ pub struct Client {
 
 #[wasm_bindgen]
 impl Client {
+    /// Getter for the client id. Do not allow setting it.
+    /// Needs clone
+    #[wasm_bindgen(getter)]
+    pub fn id(&self) -> String {
+        self.id.to_string()
+    }
+
     #[wasm_bindgen(constructor)]
     pub fn new() -> Result<Self, JsError> {
         console_error_panic_hook::set_once();
