@@ -44,20 +44,11 @@ impl Serialize for Storage {
     }
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, Default)]
 pub(super) struct Provider {
     #[serde(default, skip)]
     crypto: RustCrypto,
     storage: Storage,
-}
-
-impl Provider {
-    pub(super) fn new() -> Self {
-        Self {
-            crypto: RustCrypto::default(),
-            storage: Storage::default(),
-        }
-    }
 }
 
 impl OpenMlsProvider for Provider {

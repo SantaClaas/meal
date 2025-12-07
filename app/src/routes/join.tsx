@@ -1,17 +1,15 @@
 import { Navigate, useNavigate, useParams } from "@solidjs/router";
-import { createResource, Match, Switch } from "solid-js";
-import { useAppContext, messagesUrl } from "../components/AppContext";
+import { createResource, JSX, Match, Switch } from "solid-js";
+import { useAppContext } from "../components/AppContext";
 import { sendMessage } from "../sendMessage";
+import { setupCrackle } from "../useCrackle";
 
-//@ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
-// https://devblogs.microsoft.com/typescript/announcing-typescript-5-5/#the-jsdoc-@import-tag
-/**@import { JSX, Accessor } from "solid-js" */
-//@ts-expect-error TS6192 See above
-/** @import { Group } from "../components/AppContext" */
+async function decodeKeyPackage(encodedInvite: string) {
+  const handle = await setupCrackle;
+  const result = await handle.decodeKeyPackage(encodedInvite);
+  return result;
+}
 
-/**
- * @returns {JSX.Element}
- */
 export default function Join() {
   const parameters = useParams();
 
@@ -21,15 +19,16 @@ export default function Join() {
 
   const [app, setApp] = useAppContext();
 
-  const [keyPackage] = createResource(parameters.package, app.client.decode_key_package);
+  const [keyPackage] = createResource(parameters.package, decodeKeyPackage);
 
   const navigate = useNavigate();
-  /** @param {Parameters<JSX.EventHandler<HTMLFormElement, SubmitEvent>>[0]} event */
-  async function handleDecision(event) {
+  async function handleDecision(
+    event: Parameters<JSX.EventHandler<HTMLFormElement, SubmitEvent>>[0]
+  ) {
     event.preventDefault();
 
-    const name = /** @type {HTMLInputElement} */ (event.currentTarget.username)
-      .value;
+    const name =
+      /** @type {HTMLInputElement} */ event.currentTarget.username.value;
 
     sendMessage({
       type: "inviteFromPackage",
@@ -51,36 +50,36 @@ export default function Join() {
       return;
     }
 
-    const groupId = app.client.create_group();
-    /** @type {Group} */
-    const group = {
-      id: groupId,
-      friend: keys.friend,
-      messages: [],
-    };
+    // const groupId = app.client.create_group();
+    // /** @type {Group} */
+    // const group = {
+    //   id: groupId,
+    //   friend: keys.friend,
+    //   messages: [],
+    // };
 
     // Add group to store https://docs.solidjs.com/concepts/stores#appending-new-values
-    setApp("groups", app.groups.length, group);
+    // setApp("groups", app.groups.length, group);
 
-    // Need to extract id before key package is consumed or it will error
-    const url = new URL(group.friend.id, messagesUrl);
+    // // Need to extract id before key package is consumed or it will error
+    // const url = new URL(group.friend.id, messagesUrl);
 
-    const welcomePackage = app.client.invite(groupId, keys);
-    // Send welcome to peer
-    const request = new Request(url, {
-      method: "post",
-      headers: {
-        //https://www.rfc-editor.org/rfc/rfc9420.html#name-the-message-mls-media-type
-        "Content-Type": "message/mls",
-      },
-      body: welcomePackage,
-    });
+    // const welcomePackage = app.client.invite(groupId, keys);
+    // // Send welcome to peer
+    // const request = new Request(url, {
+    //   method: "post",
+    //   headers: {
+    //     //https://www.rfc-editor.org/rfc/rfc9420.html#name-the-message-mls-media-type
+    //     "Content-Type": "message/mls",
+    //   },
+    //   body: welcomePackage,
+    // });
 
-    //TODO error handling
-    await fetch(request);
+    // //TODO error handling
+    // await fetch(request);
 
-    // Navigate to the chat
-    navigate(`/chat/${groupId}`);
+    // // Navigate to the chat
+    // navigate(`/chat/${groupId}`);
   }
 
   return (
@@ -96,10 +95,8 @@ export default function Join() {
         <Match when={keyPackage()?.friend.name}>
           {
             /** @type {(item: Accessor<NonNullable<string>>) => JSX.Element} */
-            (
-              (friendName) => (
-                <p>{friendName()} has invited you to chat with them</p>
-              )
+            (friendName) => (
+              <p>{friendName()} has invited you to chat with them</p>
             )
           }
         </Match>
