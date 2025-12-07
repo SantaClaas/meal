@@ -1,6 +1,7 @@
-import { Navigate, useParams } from "@solidjs/router";
+import { Navigate, useNavigate, useParams } from "@solidjs/router";
 import { createResource, JSX, Match, Switch } from "solid-js";
 import { setupCrackle } from "../useCrackle";
+import { ROUTES } from ".";
 
 async function decodeKeyPackage(encodedInvite: string) {
   const handle = await setupCrackle;
@@ -25,6 +26,8 @@ export default function Join() {
     const handle = await setupCrackle;
     return await handle.getConfiguration();
   });
+
+  const navigate = useNavigate();
 
   async function handleDecision(
     event: Parameters<JSX.EventHandler<HTMLFormElement, SubmitEvent>>[0]
@@ -56,36 +59,8 @@ export default function Join() {
     const group = await handle.createGroup(keys.friend, name);
     console.debug("Created group", group);
 
-    // const groupId = app.client.create_group();
-    // /** @type {Group} */
-    // const group = {
-    //   id: groupId,
-    //   friend: keys.friend,
-    //   messages: [],
-    // };
-
-    // Add group to store https://docs.solidjs.com/concepts/stores#appending-new-values
-    // setApp("groups", app.groups.length, group);
-
-    // // Need to extract id before key package is consumed or it will error
-    // const url = new URL(group.friend.id, messagesUrl);
-
-    // const welcomePackage = app.client.invite(groupId, keys);
-    // // Send welcome to peer
-    // const request = new Request(url, {
-    //   method: "post",
-    //   headers: {
-    //     //https://www.rfc-editor.org/rfc/rfc9420.html#name-the-message-mls-media-type
-    //     "Content-Type": "message/mls",
-    //   },
-    //   body: welcomePackage,
-    // });
-
-    // //TODO error handling
-    // await fetch(request);
-
-    // // Navigate to the chat
-    // navigate(`/chat/${groupId}`);
+    await handle.inviteToGroup(group.id, keys);
+    navigate(ROUTES.chat(group.id));
   }
 
   //TODO show confirm dialog if they want to stay anonymous

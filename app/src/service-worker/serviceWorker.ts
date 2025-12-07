@@ -225,18 +225,14 @@ const handler = {
   },
 
   //TODO there might be overhead in passing the key package between contexts
-  async inviteToGroup(
-    friendId: string,
-    groupId: string,
-    keyPackage: DecodedPackage
-  ) {
+  async inviteToGroup(groupId: string, keyPackage: DecodedPackage) {
     const client = await getClient;
     const welcomePackage = client.invite(groupId, keyPackage);
     // Persist client change even if the buffer is shared
     void updateClient(client);
 
     assertNotShared(welcomePackage);
-    await sendGroupInvite(friendId, welcomePackage);
+    await sendGroupInvite(keyPackage.friend.id, welcomePackage);
   },
 };
 
