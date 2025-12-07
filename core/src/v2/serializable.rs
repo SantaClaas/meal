@@ -14,7 +14,9 @@ use openmls_basic_credential::SignatureKeyPair;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::{JsError, prelude::wasm_bindgen};
 
-use crate::{CIPHERSUITE, ID_LENGTH, encode_application_id, v2::provider::Provider};
+use crate::{
+    CIPHERSUITE, DecodedPackage, Friend, ID_LENGTH, encode_application_id, v2::provider::Provider,
+};
 
 #[derive(Serialize, Deserialize)]
 struct User {
@@ -40,7 +42,7 @@ struct Client {
 pub fn create_client(id: Option<String>, name: Option<String>) -> Result<Vec<u8>, JsError> {
     console_error_panic_hook::set_once();
 
-    let provider = Provider::new();
+    let provider = Provider::default();
     let client_id = id.unwrap_or_else(|| nanoid!(ID_LENGTH));
 
     //TODO Basic credentials only for tests and demo
@@ -107,5 +109,39 @@ pub fn create_invite(client: &[u8], user_name: Option<String>) -> Result<InviteR
     Ok(InviteResult {
         client,
         invite_payload: BASE64_URL_SAFE_NO_PAD.encode(data),
+    })
+}
+
+#[wasm_bindgen]
+pub fn decode_key_package(client: &[u8], encoded_invite: &str) -> Result<DecodedPackage, JsError> {
+    let data = BASE64_URL_SAFE_NO_PAD.decode(encoded_invite)?;
+    // let package = KeyPackageIn::tls_deserialize_exact_bytes(&data).unwrap();
+    let package: KeyPackageIn = postcard::from_bytes(&data)?;
+
+    let client: Client = postcard::from_bytes(client)?;
+
+    let validated = package.validate(client.provider.crypto(), ProtocolVersion::Mls10)?;
+    let id = validated
+        .extensions()
+        .application_id()
+        .map(|id| str::from_utf8(id.as_slice()))
+        .transpose()?
+        .ok_or_else(|| {
+            JsError::new("Invite did not contain an id to contact the other client with")
+        })?;
+
+    let (id, friend_name) = if id.len() > ID_LENGTH {
+        let (id, friend_name) = id.split_at(ID_LENGTH);
+        (id, Some(friend_name))
+    } else {
+        (id, None)
+    };
+
+    Ok(DecodedPackage {
+        friend: Friend {
+            id: id.to_owned(),
+            name: friend_name.map(str::to_owned),
+        },
+        key_package: validated,
     })
 }

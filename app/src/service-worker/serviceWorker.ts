@@ -1,6 +1,10 @@
 import { precacheAndRoute } from "workbox-precaching";
 import { openDB } from "idb";
-import init, { create_client, create_invite } from "meal-core";
+import init, {
+  create_client,
+  create_invite,
+  decode_key_package,
+} from "meal-core";
 import { expose } from "../crackle";
 import { Schema } from "./schema";
 
@@ -155,6 +159,14 @@ const handler = {
 
     const inviteUrl = new URL(`/join/${invite_payload}`, location.origin);
     return inviteUrl.href;
+  },
+
+  async decodeKeyPackage(encodedInvite: string) {
+    const client = await getClient;
+
+    const result = decode_key_package(client, encodedInvite);
+
+    return result;
   },
 };
 

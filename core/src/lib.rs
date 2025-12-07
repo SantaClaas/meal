@@ -13,6 +13,7 @@ use provider::Provider;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use tls_codec::Serialize as _;
+use tsify::Tsify;
 use wasm_bindgen::prelude::*;
 
 pub(crate) const CIPHERSUITE: Ciphersuite =
@@ -37,15 +38,16 @@ pub struct Client {
     provider: Provider,
 }
 
-#[wasm_bindgen(getter_with_clone)]
+#[derive(Tsify, serde::Serialize)]
+#[tsify(into_wasm_abi)]
 pub struct DecodedPackage {
     /// The friend that sent the key package
     pub friend: Friend,
     key_package: KeyPackage,
 }
 
-#[derive(serde::Serialize, Clone)]
-#[wasm_bindgen(getter_with_clone)]
+#[derive(Tsify, serde::Serialize)]
+#[tsify(into_wasm_abi)]
 pub struct Friend {
     pub id: String,
     pub name: Option<String>,
@@ -109,9 +111,9 @@ enum ApplicationMessage {
         name: Option<String>,
     },
 }
-#[wasm_bindgen]
+// #[wasm_bindgen]
 impl Client {
-    #[wasm_bindgen(constructor)]
+    // #[wasm_bindgen(constructor)]
     pub fn new(id: Option<String>, name: Option<String>) -> Self {
         console_error_panic_hook::set_once();
 
