@@ -2,6 +2,7 @@ import { Navigate, useNavigate, useParams } from "@solidjs/router";
 import { createResource, JSX, Match, Switch } from "solid-js";
 import { setupCrackle } from "../useCrackle";
 import { ROUTES } from ".";
+import { getConfiguration } from "../database";
 
 async function decodeKeyPackage(encodedInvite: string) {
   const handle = await setupCrackle;
@@ -22,10 +23,7 @@ export default function Join() {
 
   const [keyPackage] = createResource(parameters.package, decodeKeyPackage);
 
-  const [configuration] = createResource(async () => {
-    const handle = await setupCrackle;
-    return await handle.getConfiguration();
-  });
+  const [configuration] = createResource(getConfiguration);
 
   const navigate = useNavigate();
 

@@ -1,9 +1,15 @@
 import { precacheAndRoute } from "workbox-precaching";
-import { openDB } from "idb";
 import init, { Client, DecodedPackage, Friend } from "meal-core";
 import { expose } from "../crackle";
-import { Group, Message, Schema } from "./schema";
+import { Group, Message } from "../database/schema";
 import { broadcastMessage } from "../broadcast";
+import {
+  getConfiguration,
+  getGroup,
+  insertGroup,
+  openDatabase,
+  updateGroup,
+} from "../database";
 
 /**
  * @import { Schema } from "./schema"
@@ -18,39 +24,6 @@ console.debug("Service worker: environment", process.env.NODE_ENV);
 // @ts-expect-error This variable is replaced by workbox through vite pwa plugin
 precacheAndRoute(self.__WB_MANIFEST);
 
-const openDatabase = /** @type {typeof openDB<Schema>} */ openDB("meal", 1, {
-  upgrade(database) {
-    console.debug("Service worker: upgrading database");
-    if (!database.objectStoreNames.contains("configuration")) {
-      database.createObjectStore("configuration", { autoIncrement: true });
-    }
-    if (!database.objectStoreNames.contains("groups")) {
-      database.createObjectStore("groups", {
-        autoIncrement: true,
-        keyPath: "id",
-      });
-    }
-  },
-});
-
-openDatabase.then((database) => {
-  const transaction = database.transaction("configuration", "readwrite");
-  const store = transaction.objectStore("configuration");
-  if (store.add === undefined) throw new Error("Store is undefined");
-
-  store.add({ isOnboarded: false });
-});
-
-async function getConfiguration(): Promise<Schema["configuration"]> {
-  // Get configuration
-  const database = await openDatabase;
-  const transaction = database.transaction("configuration", "readonly");
-  const store = transaction.objectStore("configuration");
-  // Get first item
-  const cursor = await store.openCursor();
-  const configuration = /** @type {Schema["configuration"]} */ cursor?.value;
-  return configuration;
-}
 /**
  * Convenience function to make get a file from a directory more ergonomic without failing if the file does not exist.
  */
@@ -155,27 +128,6 @@ function assertNotShared(
     throw new Error("Uint8Array uses a SharedArrayBuffer");
 }
 
-async function getGroup(groupId: string): Promise<Group | undefined> {
-  const database = await openDatabase;
-  const transaction = database.transaction("groups", "readonly");
-  const store = transaction.objectStore("groups");
-  return await store.get(groupId);
-}
-
-async function updateGroup(group: Group) {
-  const database = await openDatabase;
-  const transaction = database.transaction("groups", "readwrite");
-  const store = transaction.objectStore("groups");
-  store.put(group);
-}
-
-async function insertGroup(group: Group) {
-  const database = await openDatabase;
-  const transaction = database.transaction("groups", "readwrite");
-  const store = transaction.objectStore("groups");
-  store.add(group);
-}
-
 const handler = {
   async getIsOnboarded() {
     console.debug("[Service worker] Getting isOnboarded");
@@ -183,7 +135,6 @@ const handler = {
     return configuration.isOnboarded;
   },
 
-  getConfiguration,
   async setName(name: string) {
     const database = await openDatabase;
     const transaction = database.transaction("configuration", "readwrite");

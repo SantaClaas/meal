@@ -1,5 +1,5 @@
 import { onCleanup } from "solid-js";
-import { Group } from "./service-worker/schema";
+import { Group } from "./database/schema";
 
 export const BROADCAST_NAME = "meal";
 const broadcast = new BroadcastChannel(BROADCAST_NAME);
