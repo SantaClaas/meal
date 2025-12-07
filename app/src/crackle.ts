@@ -51,13 +51,14 @@ export function expose<T extends object>(target: T, port: MessagePort) {
         responsePort.postMessage(targetProperty);
         return;
       }
+
       let result: unknown | undefined;
       try {
         result = Reflect.apply(targetProperty, target, parameters);
       } catch (error: unknown) {
         // Transfer error to the client so that it aborts a failed operation the same way as the service worker would
         // Error should be transferable
-        //TODO this is a naive implementation that assumes that the error of a type that is structured cloneable when it is in every sense unkown
+        //TODO this is a naive implementation that assumes that the error is of a type that is structured cloneable when it is in every sense unkown
         responsePort.postMessage({ error } satisfies CallResult);
 
         // Throw error so behavior is not altered by stopping the short circuit caused by the error
@@ -98,7 +99,7 @@ function waitForResponse(port: MessagePort): Promise<unknown> {
 
         reject(
           new ServiceWorkerCallError(
-            "The service worker side implementation of the resulted in an error",
+            "The service worker side implementation call resulted in an error. View cause for details and look at service worker logs for more information.",
             // Error might not be the same as we sent it due to structured cloning and its limitations
             { cause: event.data.error }
           )
