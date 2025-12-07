@@ -1,8 +1,8 @@
 import { precacheAndRoute } from "workbox-precaching";
 import { openDB } from "idb";
-import init, { Client, Friend } from "meal-core";
+import init, { Client, DecodedPackage, Friend } from "meal-core";
 import { expose } from "../crackle";
-import { Schema } from "./schema";
+import { Group, Schema } from "./schema";
 
 /**
  * @import { Schema } from "./schema"
@@ -75,10 +75,7 @@ async function persistClient(client: Client) {
   const writeStream = await fileHandle.createWritable();
 
   const serializedClient = client.serialize();
-  if (serializedClient.buffer instanceof SharedArrayBuffer)
-    throw new Error(
-      "Did not expect a SharedArrayBuffer. Cannot write shared buffer to file"
-    );
+  assertNotShared(serializedClient);
 
   try {
     await writeStream.write(serializedClient.buffer);
@@ -126,6 +123,30 @@ async function updateClient(client: Client) {
 
 /** The url for messages endpoint. Don't forget the trailing slash. */
 const messagesUrl = new URL("/messages/", self.location.origin);
+async function sendGroupInvite(
+  friendId: string,
+  welcomePackage: Uint8Array<ArrayBuffer>
+) {
+  const url = new URL(friendId, messagesUrl);
+  // Send welcome to peer
+  const request = new Request(url, {
+    method: "post",
+    headers: {
+      // https://www.rfc-editor.org/rfc/rfc9420.html#name-the-message-mls-media-type
+      "Content-Type": "message/mls",
+    },
+    body: welcomePackage,
+  });
+
+  //TODO error handling
+  await fetch(request);
+}
+function assertNotShared(
+  data: Uint8Array<ArrayBufferLike>
+): asserts data is Uint8Array<ArrayBuffer> {
+  if (data.buffer instanceof SharedArrayBuffer)
+    throw new Error("Uint8Array uses a SharedArrayBuffer");
+}
 
 const handler = {
   async getIsOnboarded() {
@@ -162,7 +183,9 @@ const handler = {
     ]);
 
     //TODO fix invite storage/memory leak from creating and adding new key packages without removing them
-    const invite_payload = client.create_invite(configuration.user?.name);
+    const invite_payload = client.create_invite(
+      configuration.defaultUser?.name
+    );
 
     // Persisting the client does not block us from responding
     void updateClient(client);
@@ -184,10 +207,36 @@ const handler = {
   async createGroup(friend: Friend, name: string) {
     const client = await getClient;
     // const { client: newClient, group_id } = create_group(client);
-    const group_id = client.create_group();
-    await updateClient(client);
-    //TODO persist group with id from core
-    //TODO return group
+    const groupId = client.create_group();
+    void updateClient(client);
+    const group: Group = {
+      id: groupId,
+      user: { name },
+      friend,
+      messages: [],
+    };
+
+    const database = await openDatabase;
+    const transaction = database.transaction("groups", "readwrite");
+    const store = transaction.objectStore("groups");
+    store.add(group);
+
+    return group;
+  },
+
+  //TODO there might be overhead in passing the key package between contexts
+  async inviteToGroup(
+    friendId: string,
+    groupId: string,
+    keyPackage: DecodedPackage
+  ) {
+    const client = await getClient;
+    const welcomePackage = client.invite(groupId, keyPackage);
+    // Persist client change even if the buffer is shared
+    void updateClient(client);
+
+    assertNotShared(welcomePackage);
+    await sendGroupInvite(friendId, welcomePackage);
   },
 };
 

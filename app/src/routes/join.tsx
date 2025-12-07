@@ -1,6 +1,5 @@
 import { Navigate, useParams } from "@solidjs/router";
 import { createResource, JSX, Match, Switch } from "solid-js";
-import { useAppContext } from "../components/AppContext";
 import { setupCrackle } from "../useCrackle";
 
 async function decodeKeyPackage(encodedInvite: string) {
@@ -19,8 +18,6 @@ export default function Join() {
   if (!parameters.package) {
     return <Navigate href="/" />;
   }
-
-  const [app, setApp] = useAppContext();
 
   const [keyPackage] = createResource(parameters.package, decodeKeyPackage);
 
@@ -55,6 +52,9 @@ export default function Join() {
     const keys = keyPackage();
     if (keys === undefined)
       throw new Error("Expected key package to be loaded");
+
+    const group = await handle.createGroup(keys.friend, name);
+    console.debug("Created group", group);
 
     // const groupId = app.client.create_group();
     // /** @type {Group} */
@@ -126,7 +126,7 @@ export default function Join() {
           autocomplete="username"
           required
           disabled={configuration.loading}
-          value={configuration()?.user?.name}
+          value={configuration()?.defaultUser?.name}
         />
 
         <button type="submit" name="accept">

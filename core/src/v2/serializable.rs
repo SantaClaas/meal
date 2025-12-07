@@ -12,10 +12,12 @@ use nanoid::nanoid;
 use openmls::prelude::*;
 use openmls_basic_credential::SignatureKeyPair;
 use serde::{Deserialize, Serialize};
+use tls_codec::Serialize as _;
 use wasm_bindgen::{JsError, prelude::wasm_bindgen};
 
 use crate::{
-    CIPHERSUITE, DecodedPackage, Friend, ID_LENGTH, encode_application_id, v2::provider::Provider,
+    ApplicationMessage, CIPHERSUITE, DecodedPackage, Friend, ID_LENGTH, encode_application_id,
+    v2::provider::Provider,
 };
 
 #[derive(Serialize, Deserialize)]
@@ -30,6 +32,10 @@ pub enum CreateGroupError {
     #[error("Group id already exists. This should not happen if the group id is created randomly")]
     IdCollision,
 }
+
+#[derive(Debug, thiserror::Error)]
+#[error("Group not found")]
+pub struct GroupNotFound;
 
 #[derive(Serialize, Deserialize)]
 #[wasm_bindgen]
@@ -166,5 +172,48 @@ impl Client {
 
         self.groups.insert(group_id.clone());
         Ok(js_group_id)
+    }
+
+    /// Creates a group using the package decoded in when reading the invite.
+    /// Returns the serialized welcome message.
+    /// Don't use "package" as a parameter name as it is reserved in JavaScript and will make
+    /// the wasm bindgen code fail.
+    pub fn invite(
+        &mut self,
+        group_id: &str,
+        key_package: DecodedPackage,
+        user_name: Option<String>,
+    ) -> Result<Vec<u8>, JsError> {
+        let bytes = BASE64_URL_SAFE_NO_PAD.decode(group_id).unwrap();
+        let group_id = GroupId::from_slice(&bytes);
+        let package = key_package.key_package;
+        let storage = self.provider.storage();
+
+        let mut group = MlsGroup::load(storage, &group_id)?.ok_or_else(|| GroupNotFound)?;
+
+        //TODO support multi user groups
+        // We don't need the out message because there is no other group members
+        // that need to be "informed" of the change (the commit message)
+        let (_out_message, welcome, _group_info) =
+            group.add_members(&self.provider, &self.user.signature_key, &[package])?;
+
+        // Process it on our end
+        group.merge_pending_commit(&self.provider)?;
+        // Create introduction message as welcome does not include enough information that are needed on the application layer
+        let introduction = ApplicationMessage::Introduction {
+            id: self.id.to_string(),
+            user_name,
+        };
+
+        let data = postcard::to_allocvec(&introduction).unwrap();
+        let message = group.create_message(&self.provider, &self.user.signature_key, &data)?;
+
+        //TODO the introduction has to be sent to all group members when we support multi user groups
+        // Batch send messages
+        //TODO test without vector and U8 slice variant
+        let mut vector = Vec::new();
+        vector.push(welcome);
+        vector.push(message);
+        Ok(TlsSliceU8(&vector).tls_serialize_detached()?)
     }
 }
