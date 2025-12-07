@@ -28,7 +28,8 @@ struct User {
     signature_key: SignatureKeyPair,
 }
 
-#[wasm_bindgen(getter_with_clone)]
+// Disable wasm_bindgen as it screws with our v2 implementation
+// #[wasm_bindgen(getter_with_clone)]
 pub struct Client {
     pub id: String,
     user: User,
