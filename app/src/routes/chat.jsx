@@ -2,9 +2,7 @@ import { Navigate, useParams } from "@solidjs/router";
 import { createMemo, For, Show } from "solid-js";
 import { useAppContext } from "../components/AppContext";
 import { sendMessage } from "../sendMessage";
-//@ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
 /** @import { JSX } from "solid-js" */
-//@ts-expect-error TS6192 Can not handle new JSDoc syntax (yet?)
 /** @import { Message } from "../components/AppContext" */
 
 // TODO take this inspiration https://firebasestorage.googleapis.com/v0/b/design-spec/o/projects%2Fgoogle-material-3%2Fimages%2Fly7219l1-1.png?alt=media&token=67ff316b-7515-4e9f-9971-4e580290b1f2

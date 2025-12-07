@@ -5,6 +5,7 @@ import QRCode from "qrcode";
 import { setupCrackle } from "../useCrackle";
 import { useBroadcast } from "../broadcast";
 import { ROUTES } from ".";
+import { getConfiguration } from "../database";
 /** @import { JSX, VoidProps, Signal } from "solid-js" */
 
 const FormElement = /** @type {const} */ ({
@@ -67,11 +68,6 @@ function InviteSettingsDialog({ userName, ref }) {
       </form>
     </dialog>
   );
-}
-
-async function getConfiguration() {
-  const handle = await setupCrackle;
-  return await handle.getConfiguration();
 }
 
 export default function Invite() {
