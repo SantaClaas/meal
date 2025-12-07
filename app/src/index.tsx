@@ -2,7 +2,7 @@
 import { render } from "solid-js/web";
 import { Show } from "solid-js";
 import { Route, Router } from "@solidjs/router";
-import Index from "./routes/index";
+import Index from "./routes/index.tsx";
 
 import "./index.css";
 import { AppContextProvider } from "./components/AppContext";

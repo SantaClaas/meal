@@ -129,6 +129,7 @@ impl Client {
     }
 
     pub fn from_serialized(bytes: &[u8]) -> Result<Self, JsError> {
+        console_error_panic_hook::set_once();
         Ok(postcard::from_bytes(bytes)?)
     }
 

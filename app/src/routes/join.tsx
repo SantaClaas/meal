@@ -67,6 +67,7 @@ export default function Join() {
   return (
     <>
       <h1>Invitation</h1>
+      <a href="/">Back</a>
 
       <Switch>
         <Match when={keyPackage.loading}>
