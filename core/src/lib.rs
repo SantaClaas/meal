@@ -55,16 +55,17 @@ pub struct Friend {
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
-struct MessageContent {
+pub struct MessageContent {
     /// The time the sender said they supposedly sent the message
     #[serde(with = "time::serde::iso8601")]
     sent: OffsetDateTime,
     text: String,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Tsify)]
+#[tsify(into_wasm_abi)]
 #[serde(tag = "type")]
-enum Message {
+pub enum Message {
     Private {
         group_id: String,
         content: MessageContent,

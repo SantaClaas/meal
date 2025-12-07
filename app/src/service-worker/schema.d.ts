@@ -9,15 +9,19 @@ export type User = {
    */
   name?: string;
 };
-
+export type Message = {
+  sentAt: Date;
+  receivedAt: Date;
+  text: string;
+};
 export type Group = {
   id: string;
   /**
    * The users appearance in the group. The user can chose a different appearance per group.
    */
-  user: User;
+  user?: User;
   friend: Friend;
-  messages: string[];
+  messages: Message[];
 };
 
 interface Schema extends DBSchema {
