@@ -17,7 +17,7 @@ use tls_codec::Serialize as _;
 use wasm_bindgen::{JsError, prelude::wasm_bindgen};
 
 use crate::{
-    ApplicationMessage, CIPHERSUITE, DecodedPackage, Friend, ID_LENGTH, Message,
+    ApplicationMessage, CIPHERSUITE, DecodedPackage, Friend, ID_LENGTH, Message, MessageContent,
     encode_application_id, v2::provider::Provider,
 };
 
@@ -352,5 +352,27 @@ impl Client {
         };
 
         Ok(value)
+    }
+
+    pub fn send_message(
+        &mut self,
+        group_id: &str,
+        message: MessageContent,
+    ) -> Result<Box<[u8]>, JsError> {
+        let group_id = BASE64_URL_SAFE_NO_PAD.decode(group_id)?;
+        let group_id = GroupId::from_slice(&group_id);
+        let mut group =
+            MlsGroup::load(self.provider.storage(), &group_id)?.ok_or_else(|| GroupNotFound)?;
+
+        let message = postcard::to_allocvec(&message)?;
+        let message = group.create_message(&self.provider, &self.user.signature_key, &message)?;
+
+        // We can batch send messages so we need to wrap it in a collection
+        let messages = &[message];
+        let message = TlsSliceU8(messages);
+
+        let serialized = message.tls_serialize_detached()?;
+
+        Ok(serialized.into_boxed_slice())
     }
 }

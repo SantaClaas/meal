@@ -1,20 +1,16 @@
 import { precacheAndRoute } from "workbox-precaching";
 import init, { Client, DecodedPackage, Friend } from "meal-core";
 import { expose } from "../crackle";
-import { Group, Message } from "../database/schema";
+import { Group, IncomingMessage } from "../database/schema";
 import { broadcastMessage } from "../broadcast";
 import {
+  deleteDatabase,
   getConfiguration,
   getGroup,
   insertGroup,
   openDatabase,
   updateGroup,
 } from "../database";
-
-/**
- * @import { Schema } from "./schema"
- * @import { Operation } from "./operation"
- */
 
 // Reduce noise
 // @ts-expect-error
@@ -72,6 +68,22 @@ async function persistClient(client: Client) {
   return client;
 }
 
+async function deleteClient() {
+  const directory = await navigator.storage.getDirectory();
+  try {
+    await directory.removeEntry(FILE_NAME, {
+      recursive: false,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "NotFoundError") {
+      console.debug("No client file found");
+      return;
+    }
+
+    throw error;
+  }
+}
+
 async function initializeClient(): Promise<Client> {
   // Have to use wasm-pack --target web to build the wasm package to get the init function because with the bundler target
   // it is included as a top level await which is not supported by service workers according to the web spec
@@ -103,30 +115,34 @@ async function updateClient(client: Client) {
 
 /** The url for messages endpoint. Don't forget the trailing slash. */
 const messagesUrl = new URL("/messages/", self.location.origin);
-async function sendGroupInvite(
-  friendId: string,
-  welcomePackage: Uint8Array<ArrayBuffer>
-) {
+async function postMessage(friendId: string, body: Uint8Array<ArrayBuffer>) {
   const url = new URL(friendId, messagesUrl);
-  // Send welcome to peer
   const request = new Request(url, {
     method: "post",
     headers: {
-      // https://www.rfc-editor.org/rfc/rfc9420.html#name-the-message-mls-media-type
+      //https://www.rfc-editor.org/rfc/rfc9420.html#name-the-message-mls-media-type
       "Content-Type": "message/mls",
     },
-    body: welcomePackage,
+    body,
   });
 
   //TODO error handling
+  //TODO retry
   await fetch(request);
 }
+
 function assertNotShared(
   data: Uint8Array<ArrayBufferLike>
 ): asserts data is Uint8Array<ArrayBuffer> {
   if (data.buffer instanceof SharedArrayBuffer)
     throw new Error("Uint8Array uses a SharedArrayBuffer");
 }
+
+export type OutgoingMessage = {
+  groupId: string;
+  sentAt: Date;
+  text: string;
+};
 
 const handler = {
   async getIsOnboarded() {
@@ -207,7 +223,32 @@ const handler = {
     void updateClient(client);
 
     assertNotShared(welcomePackage);
-    await sendGroupInvite(keyPackage.friend.id, welcomePackage);
+    await postMessage(keyPackage.friend.id, welcomePackage);
+  },
+
+  async sendMessage(message: OutgoingMessage) {
+    const group = await getGroup(message.groupId);
+    if (group === undefined) throw new Error("Group not found");
+
+    const client = await getClient;
+    const body = client.send_message(group.id, {
+      sent_at: message.sentAt,
+      text: message.text,
+    });
+
+    assertNotShared(body);
+    await postMessage(group.friend.id, body);
+  },
+
+  async signOut() {
+    //TODO make sign out not suddenly delete everything
+    // Wipe client
+    await Promise.all([
+      getSocket.then((socket) => socket.close()),
+      //TODO test what happens if clients have open connections to the database
+      deleteDatabase(),
+      deleteClient(),
+    ]);
   },
 };
 
@@ -260,9 +301,9 @@ async function receiveMessage(event: MessageEvent<ArrayBuffer>) {
     case "Private":
       {
         console.debug("Processed private message", message);
-        const messageEntry: Message = {
+        const messageEntry: IncomingMessage = {
           receivedAt: new Date(),
-          sentAt: new Date(message.content.sent),
+          sentAt: new Date(message.content.sent_at),
           text: message.content.text,
         };
 
@@ -279,6 +320,7 @@ async function receiveMessage(event: MessageEvent<ArrayBuffer>) {
   }
 }
 
+//TODO why did I decide to use a websocket instead of SSE? Replace with SSE
 async function setupWebsocket() {
   // Assume client id does not change
   const client = await getClient;
