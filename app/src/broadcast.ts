@@ -4,7 +4,7 @@ import { Group, IncomingMessage } from "./database/schema";
 export const BROADCAST_NAME = "meal";
 const broadcast = new BroadcastChannel(BROADCAST_NAME);
 
-export type BroadcaseMessage =
+export type BroadcastMessage =
   | {
       type: "Group created";
       group: Group;
@@ -15,12 +15,12 @@ export type BroadcaseMessage =
       message: IncomingMessage;
     };
 
-export function broadcastMessage(message: BroadcaseMessage) {
+export function broadcastMessage(message: BroadcastMessage) {
   broadcast.postMessage(message);
 }
 
 export function useBroadcast(
-  callback: (event: MessageEvent<BroadcaseMessage>) => void
+  callback: (event: MessageEvent<BroadcastMessage>) => void
 ) {
   const listening = new AbortController();
 
