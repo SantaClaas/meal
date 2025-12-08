@@ -3,6 +3,8 @@ import Onboarding from "../components/Onboarding";
 import { useAppContext } from "../components/AppContext";
 import TopAppBar from "../components/TopAppBar";
 import { setupCrackle } from "../useCrackle";
+import { getGroups } from "../database";
+import { ROUTES } from ".";
 // https://devblogs.microsoft.com/typescript/announcing-typescript-5-5/#the-jsdoc-@import-tag
 /** @import { Signal, JSX, Accessor, ParentProps } from "solid-js" */
 /** @import { Message } from "../components/AppContext" */
@@ -27,21 +29,20 @@ function FloatingActionButton() {
   );
 }
 
-function ChatList() {
-  const [app, setApp] = useAppContext();
+async function signOut() {
+  //TODO make sign out not suddenly delete everything
+  const handle = await setupCrackle;
+  await handle.wipe();
+}
 
+function ChatList() {
+  const [groups] = createResource(getGroups);
   return (
     <section class="grid isolate overscroll-contain">
       <TopAppBar
         header="Melt"
         trailingAction={
-          <button
-            onClick={() => {
-              setApp("name", null);
-              setApp("isOnboarded", false);
-            }}
-            class="p-3 text-on-surface-variant"
-          >
+          <button onClick={signOut} class="p-3 text-on-surface-variant">
             <span class="sr-only">sign out</span>
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -57,17 +58,15 @@ function ChatList() {
         }
       />
       <ol class="col-start-1 grid grid-cols-[auto_1fr_auto] scrollbar-none overflow-y-scroll">
-        <For each={app.groups}>
+        <For each={groups()}>
           {(group) => {
-            const lastMessage = () =>
-              group.messages.length > 0
-                ? group.messages[group.messages.length - 1]
-                : undefined;
+            const lastMessage = group.messages.at(-1);
 
+            //TODO refactor to absolute placed anchor to keep semantics of nested elements
             return (
               <li class="contents">
                 <a
-                  href={`/chat/${group.id}`}
+                  href={ROUTES.chat(group.id)}
                   draggable="false"
                   class="ps-4 pe-6 grid grid-cols-subgrid col-span-3 gap-x-4 py-2 items-center bg-surface group
           hover:bg-[color-mix(in_srgb,theme(colors.light.surface),theme(colors.light.on-surface)_8%)]
@@ -86,28 +85,25 @@ function ChatList() {
                       {/* TODO add info button that they hid their name */}
                       {group.friend.name ?? "Unknown"}
                     </h2>
-                    <Show when={lastMessage()}>
-                      {
-                        /** @type {(item: Accessor<Message>) => JSX.Element} */ (
-                          message
-                        ) => (
-                          <p
-                            class="text-on-surface-variant line-clamp-1 text-ellipsis text-body-md group-hover:text-on-surface
+                    <Show when={lastMessage}>
+                      {(message) => (
+                        <p
+                          class="text-on-surface-variant line-clamp-1 text-ellipsis text-body-md group-hover:text-on-surface
             group-focus-visible:text-on-surface group-active:text-on-surface
 "
-                          >
-                            {message().text}
-                          </p>
-                        )
-                      }
+                        >
+                          {message().text}
+                        </p>
+                      )}
                     </Show>
                   </hgroup>
-                  <Show when={lastMessage()}>
+                  <Show when={lastMessage}>
                     {
                       /** @type {(item: Accessor<Message>) => JSX.Element} */ (
                         message
                       ) => {
-                        const dateString = message().sent.toLocaleDateString();
+                        const dateString =
+                          message().sentAt.toLocaleDateString();
                         const isToday =
                           dateString === new Date().toLocaleDateString();
 
@@ -115,14 +111,14 @@ function ChatList() {
                           "Is today?",
                           isToday,
                           dateString,
-                          message().sent.toLocaleTimeString()
+                          message().sentAt.toLocaleTimeString()
                         );
 
                         return (
                           //TODO format date correctly for datetime attribute
                           <time class="text-on-surface-variant text-label-sm">
                             {isToday
-                              ? message().sent.toLocaleTimeString(undefined, {
+                              ? message().sentAt.toLocaleTimeString(undefined, {
                                   timeStyle: "short",
                                 })
                               : dateString}

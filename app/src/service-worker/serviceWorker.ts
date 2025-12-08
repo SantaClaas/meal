@@ -240,8 +240,7 @@ const handler = {
     await postMessage(group.friend.id, body);
   },
 
-  async signOut() {
-    //TODO make sign out not suddenly delete everything
+  async wipe() {
     // Wipe client
     await Promise.all([
       getSocket.then((socket) => socket.close()),

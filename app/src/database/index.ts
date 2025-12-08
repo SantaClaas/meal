@@ -42,6 +42,13 @@ export async function getConfiguration(): Promise<Schema["configuration"]> {
   return configuration;
 }
 
+export async function getGroups(): Promise<Group[]> {
+  const database = await openDatabase;
+  const transaction = database.transaction("groups", "readonly");
+  const store = transaction.objectStore("groups");
+  return (await store.getAll()) as Group[];
+}
+
 export async function getGroup(groupId: string): Promise<Group | undefined> {
   const database = await openDatabase;
   const transaction = database.transaction("groups", "readonly");
