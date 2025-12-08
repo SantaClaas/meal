@@ -253,7 +253,8 @@ impl Client {
         let mut vector = Vec::new();
         vector.push(welcome);
         vector.push(message);
-        Ok(TlsSliceU8(&vector).tls_serialize_detached()?)
+        // The u16 describes the length of the message e.g. u8 would be max length 255
+        Ok(TlsSliceU16(&vector).tls_serialize_detached()?)
     }
 
     fn process_private_message(
@@ -335,7 +336,8 @@ impl Client {
     }
 
     pub fn process_message(&mut self, data: &[u8]) -> Result<Message, JsError> {
-        let mut messages = TlsVecU8::<MlsMessageIn>::tls_deserialize_exact_bytes(data)?
+        // Have to use TlsVecU16 because the bit length (16) stands for the space reserved to encode the length of the message not the integer stored like in a Vec<u8>
+        let mut messages = TlsVecU16::<MlsMessageIn>::tls_deserialize_exact_bytes(data)?
             .into_vec()
             .into_iter();
 
@@ -369,7 +371,7 @@ impl Client {
 
         // We can batch send messages so we need to wrap it in a collection
         let messages = &[message];
-        let message = TlsSliceU8(messages);
+        let message = TlsSliceU16(messages);
 
         let serialized = message.tls_serialize_detached()?;
 

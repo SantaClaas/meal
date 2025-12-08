@@ -59,6 +59,7 @@ pub struct Friend {
 pub struct MessageContent {
     /// The time the sender said they supposedly sent the message
     #[serde(with = "time::serde::iso8601")]
+    // #[tsify(type = "string")]
     sent_at: OffsetDateTime,
     text: String,
 }

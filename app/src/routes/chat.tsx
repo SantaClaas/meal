@@ -1,7 +1,15 @@
 import { Navigate, useParams } from "@solidjs/router";
-import { createResource, For, JSX, Show, Suspense } from "solid-js";
+import {
+  createEffect,
+  createResource,
+  For,
+  JSX,
+  Show,
+  Suspense,
+} from "solid-js";
 import { getGroup } from "../database";
 import { setupCrackle } from "../useCrackle";
+import { useBroadcast } from "../broadcast";
 
 // TODO take this inspiration https://firebasestorage.googleapis.com/v0/b/design-spec/o/projects%2Fgoogle-material-3%2Fimages%2Fly7219l1-1.png?alt=media&token=67ff316b-7515-4e9f-9971-4e580290b1f2
 // from https://m3.material.io/foundations/layout/applying-layout/compact#283b4432-e3ee-46df-aa66-9ec87965c6ef
@@ -12,7 +20,26 @@ export default function Chat() {
     return <Navigate href="/" />;
   }
 
-  const [group] = createResource(parameters.groupId, getGroup);
+  const [group, { mutate }] = createResource(parameters.groupId, getGroup);
+  createEffect(() => {
+    const currentGroup = group();
+    if (currentGroup === undefined) return;
+
+    // Can be used in effects because the internal onCleanup unsubscribes from the event when this effect is cleaned up
+    useBroadcast((event) => {
+      if (
+        event.data.type !== "Message received" ||
+        event.data.groupId !== parameters.groupId
+      )
+        return;
+
+      const message = event.data.message;
+      mutate((group) => {
+        currentGroup.messages.push(message);
+        return group;
+      });
+    });
+  });
 
   async function handleSend(
     event: Parameters<JSX.EventHandler<HTMLFormElement, SubmitEvent>>[0]

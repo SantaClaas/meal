@@ -20,6 +20,7 @@ use tower_http::{
     set_header::SetResponseHeaderLayer,
     set_status::SetStatus,
 };
+use tracing::debug;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod extractor;
@@ -124,6 +125,7 @@ async fn create_message(
     let channels = state.channels.lock().await;
     //TODO think about not leaking if they exist or not
     //TODO think about leaking data through timings
+    debug!("New message for client {}", to);
     let Some(sender) = channels.get(to.as_ref()) else {
         return StatusCode::NOT_FOUND;
     };
@@ -136,6 +138,7 @@ async fn create_message(
 }
 
 async fn handle_socket(mut socket: WebSocket, State(state): State<AppState>, client_id: Arc<str>) {
+    debug!("New socket connection for client {}", client_id);
     //TODO keep alive
     //TODO add client authentication to avoid session hijacking
     // Hijackers can deny messages to the client and analyze meta data but not read messages if they don't have the clients credentials
