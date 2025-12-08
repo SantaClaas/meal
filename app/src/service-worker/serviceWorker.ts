@@ -128,7 +128,7 @@ async function postMessage(friendId: string, body: Uint8Array<ArrayBuffer>) {
 
   //TODO error handling
   //TODO retry
-  await fetch(request);
+  return await fetch(request);
 }
 
 function assertNotShared(
@@ -223,7 +223,9 @@ const handler = {
     void updateClient(client);
 
     assertNotShared(welcomePackage);
-    await postMessage(keyPackage.friend.id, welcomePackage);
+    const response = await postMessage(keyPackage.friend.id, welcomePackage);
+    if (response.status !== 201)
+      throw new Error(`Unexpected status code response ${response.status}`);
   },
 
   async sendMessage(message: OutgoingMessage) {
@@ -232,7 +234,7 @@ const handler = {
 
     const client = await getClient;
     const body = client.send_message(group.id, {
-      sent_at: message.sentAt,
+      sent_at: message.sentAt.toISOString(),
       text: message.text,
     });
 
@@ -281,6 +283,7 @@ self.addEventListener("activate", () => {
 async function receiveMessage(event: MessageEvent<ArrayBuffer>) {
   const client = await getClient;
   const message = client.process_message(new Uint8Array(event.data));
+  console.debug("Processed message", message.type);
   void updateClient(client);
   switch (message.type) {
     case "Welcome": {
@@ -314,6 +317,11 @@ async function receiveMessage(event: MessageEvent<ArrayBuffer>) {
         // Assume it is sorted by time
         group.messages.push(messageEntry);
         await updateGroup(group);
+        broadcastMessage({
+          type: "Message received",
+          groupId: group.id,
+          message: messageEntry,
+        });
       }
       return;
   }
@@ -324,6 +332,7 @@ async function setupWebsocket() {
   // Assume client id does not change
   const client = await getClient;
 
+  console.debug("[Service worker] Connecting to socket", client.id);
   // https:// is automatically replaced with wss://
   const socketUrl = new URL(client.id, messagesUrl);
   const socket = new WebSocket(socketUrl);
