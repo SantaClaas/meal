@@ -223,7 +223,7 @@ impl Client {
         key_package: DecodedPackage,
         user_name: Option<String>,
     ) -> Result<Vec<u8>, JsError> {
-        let bytes = BASE64_URL_SAFE_NO_PAD.decode(group_id).unwrap();
+        let bytes = BASE64_URL_SAFE_NO_PAD.decode(group_id)?;
         let group_id = GroupId::from_slice(&bytes);
         let package = key_package.key_package;
         let storage = self.provider.storage();
@@ -244,7 +244,7 @@ impl Client {
             user_name,
         };
 
-        let data = postcard::to_allocvec(&introduction).unwrap();
+        let data = postcard::to_allocvec(&introduction)?;
         let message = group.create_message(&self.provider, &self.user.signature_key, &data)?;
 
         //TODO the introduction has to be sent to all group members when we support multi user groups
