@@ -1,6 +1,7 @@
 import { Navigate, useParams } from "@solidjs/router";
 import { createResource, For, JSX, Show, Suspense } from "solid-js";
 import { getGroup } from "../database";
+import { setupCrackle } from "../useCrackle";
 
 // TODO take this inspiration https://firebasestorage.googleapis.com/v0/b/design-spec/o/projects%2Fgoogle-material-3%2Fimages%2Fly7219l1-1.png?alt=media&token=67ff316b-7515-4e9f-9971-4e580290b1f2
 // from https://m3.material.io/foundations/layout/applying-layout/compact#283b4432-e3ee-46df-aa66-9ec87965c6ef
@@ -13,38 +14,22 @@ export default function Chat() {
 
   const [group] = createResource(parameters.groupId, getGroup);
 
-  // if (groupIndex() < 0) {
-  //   return (
-  // <>
-  //   <h1>Chat not found</h1>
-  //   <p>
-  //     This chat does not seem to exist <a href="/">Go back</a>
-  //   </p>
-  // </>
-  //   );
-  // }
-
   async function handleSend(
     event: Parameters<JSX.EventHandler<HTMLFormElement, SubmitEvent>>[0]
   ) {
-    // event.preventDefault();
-    // const messageText = /** @type {HTMLInputElement} */ (
-    //   event.currentTarget.message
-    // ).value;
-    // event.currentTarget.reset();
-    // /** @type {Message} */
-    // const message = {
-    //   sent: new Date(),
-    //   text: messageText,
-    // };
-    // setApp("groups", groupIndex(), "messages", messages().length, message);
-    // await sendMessage({
-    //   type: "sendMessage",
-    //   groupId: group().id,
-    //   friendId: group().friend.id,
-    //   sent: new Date(),
-    //   text: messageText,
-    // });
+    event.preventDefault();
+    const text = (
+      event.currentTarget.elements.namedItem("message") as HTMLInputElement
+    ).value;
+    event.currentTarget.reset();
+
+    const handle = await setupCrackle;
+
+    await handle.sendMessage({
+      groupId: parameters.groupId,
+      sentAt: new Date(),
+      text,
+    });
   }
 
   return (

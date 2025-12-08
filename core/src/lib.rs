@@ -54,11 +54,12 @@ pub struct Friend {
     pub name: Option<String>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Tsify, serde::Serialize, serde::Deserialize)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct MessageContent {
     /// The time the sender said they supposedly sent the message
     #[serde(with = "time::serde::iso8601")]
-    sent: OffsetDateTime,
+    sent_at: OffsetDateTime,
     text: String,
 }
 

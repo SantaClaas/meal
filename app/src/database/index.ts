@@ -1,7 +1,8 @@
-import { openDB } from "idb";
+import { deleteDB, openDB } from "idb";
 import { Group, Schema } from "./schema";
 
-export const openDatabase = openDB<Schema>("meal", 1, {
+const NAME = "meal";
+export const openDatabase = openDB<Schema>(NAME, 1, {
   upgrade(database) {
     console.debug("Service worker: upgrading database");
     if (!database.objectStoreNames.contains("configuration")) {
@@ -23,6 +24,12 @@ openDatabase.then((database) => {
 
   store.add({ isOnboarded: false });
 });
+
+export async function deleteDatabase() {
+  const database = await openDatabase;
+  database.close();
+  await deleteDB(NAME);
+}
 
 export async function getConfiguration(): Promise<Schema["configuration"]> {
   // Get configuration
