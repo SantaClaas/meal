@@ -1,6 +1,5 @@
 import { createEffect, createResource, For, Show } from "solid-js";
 import Onboarding from "../components/Onboarding";
-import { useAppContext } from "../components/AppContext";
 import TopAppBar from "../components/TopAppBar";
 import { setupCrackle } from "../useCrackle";
 import { getGroups } from "../database";
