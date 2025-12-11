@@ -2,8 +2,8 @@ import { createEffect, createResource, For, Show } from "solid-js";
 import Onboarding from "../components/Onboarding";
 import TopAppBar from "../components/TopAppBar";
 import { setupCrackle } from "../useCrackle";
-import { getGroups } from "../database";
 import { ROUTES } from ".";
+import { useApp } from "../components/AppContextProvider";
 // https://devblogs.microsoft.com/typescript/announcing-typescript-5-5/#the-jsdoc-@import-tag
 /** @import { Signal, JSX, Accessor, ParentProps } from "solid-js" */
 /** @import { Message } from "../components/AppContext" */
@@ -35,7 +35,8 @@ async function signOut() {
 }
 
 function ChatList() {
-  const [groups] = createResource(getGroups);
+  const app = useApp();
+
   return (
     <section class="grid isolate overscroll-contain">
       <TopAppBar
@@ -57,9 +58,9 @@ function ChatList() {
         }
       />
       <ol class="col-start-1 grid grid-cols-[auto_1fr_auto] scrollbar-none overflow-y-scroll">
-        <For each={groups()}>
+        <For each={app.groups}>
           {(group) => {
-            const lastMessage = group.messages.at(-1);
+            const lastMessage = () => group.messages.at(-1);
 
             //TODO refactor to absolute placed anchor to keep semantics of nested elements
             return (
@@ -84,7 +85,7 @@ function ChatList() {
                       {/* TODO add info button that they hid their name */}
                       {group.friend.name ?? "Unknown"}
                     </h2>
-                    <Show when={lastMessage}>
+                    <Show when={lastMessage()}>
                       {(message) => (
                         <p
                           class="text-on-surface-variant line-clamp-1 text-ellipsis text-body-md group-hover:text-on-surface
@@ -96,7 +97,7 @@ function ChatList() {
                       )}
                     </Show>
                   </hgroup>
-                  <Show when={lastMessage}>
+                  <Show when={lastMessage()}>
                     {
                       /** @type {(item: Accessor<Message>) => JSX.Element} */ (
                         message

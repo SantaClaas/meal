@@ -56,6 +56,14 @@ export async function getGroup(groupId: string): Promise<Group | undefined> {
   return (await store.get(groupId)) as Group;
 }
 
+export async function* streamGroups() {
+  const database = await openDatabase;
+  const transaction = database.transaction("groups", "readonly");
+  for await (const cursor of transaction.store) {
+    yield cursor.value as Group;
+  }
+}
+
 export async function updateGroup(group: Group) {
   const database = await openDatabase;
   const transaction = database.transaction("groups", "readwrite");

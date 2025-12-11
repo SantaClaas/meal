@@ -13,6 +13,7 @@ import Preview from "./components/Preview";
 import Debug from "./routes/debug";
 import { version } from "../../package.json";
 import { ROUTES } from "./routes";
+import { AppProvider } from "./components/AppContextProvider.tsx";
 
 /**
  * Defined in the vite configuration vite.config.ts
@@ -20,7 +21,7 @@ import { ROUTES } from "./routes";
 declare const __GIT_COMMIT_HASH__: string;
 render(
   () => (
-    <>
+    <AppProvider>
       <Router>
         <Route path={ROUTES.INDEX} component={Index}>
           <Route
@@ -41,7 +42,7 @@ render(
       <span class="absolute bottom-4 left-4 text-xs text-reduced-contrast-on-surface-variant pointer-events-none">
         {version}+{__GIT_COMMIT_HASH__}
       </span>
-    </>
+    </AppProvider>
   ),
   document.body
 );
