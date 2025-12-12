@@ -20,7 +20,7 @@ use tower_http::{
     set_header::SetResponseHeaderLayer,
     set_status::SetStatus,
 };
-use tracing::debug;
+use tracing::{debug, error};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod extractor;
@@ -127,6 +127,7 @@ async fn create_message(
     //TODO think about leaking data through timings
     debug!("New message for client {}", to);
     let Some(sender) = channels.get(to.as_ref()) else {
+        error!("Client {} not found", to);
         return StatusCode::NOT_FOUND;
     };
 
@@ -138,7 +139,7 @@ async fn create_message(
 }
 
 async fn handle_socket(mut socket: WebSocket, State(state): State<AppState>, client_id: Arc<str>) {
-    debug!("New socket connection for client {}", client_id);
+    debug!("[{}] connected", client_id);
     //TODO keep alive
     //TODO add client authentication to avoid session hijacking
     // Hijackers can deny messages to the client and analyze meta data but not read messages if they don't have the clients credentials
@@ -156,7 +157,7 @@ async fn handle_socket(mut socket: WebSocket, State(state): State<AppState>, cli
 
     if let Some(previous_sender) = previous_sender {
         //TODO think about if this is valid
-        tracing::warn!("Replacing previous subscriber for client");
+        tracing::warn!("[{}] Replacing previous subscriber", client_id);
         // This should close the SSE stream for the other client that used the same id
         //TODO test assumption
         drop(previous_sender);
@@ -180,16 +181,21 @@ async fn handle_socket(mut socket: WebSocket, State(state): State<AppState>, cli
         }
     }
 
-    tracing::debug!("Message stream closed");
+    tracing::debug!("[{}] disconnected", client_id);
 
     // Try to close gracefully but if not ignore error
     if let Err(error) = socket.close().await {
-        tracing::trace!("Ignoring error closing websocket: {}", error);
+        tracing::trace!(
+            "[{}] Ignoring error closing websocket: {}",
+            client_id,
+            error
+        );
     }
 
     // Remove channel to avoid memory leak
     // It is the clients responsibility to reestablish a new connection
     state.channels.lock().await.remove(&client_id);
+    tracing::debug!("[{}] removed", client_id);
 }
 
 /// Handles requests for listening to server sent events (SSE) that are used to send incoming messages from the server to the client
