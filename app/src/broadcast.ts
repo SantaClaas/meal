@@ -29,5 +29,5 @@ export function useBroadcast(
     signal: listening.signal,
   });
 
-  onCleanup(listening.abort);
+  onCleanup(() => listening.abort());
 }
