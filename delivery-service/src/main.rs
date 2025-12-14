@@ -1,19 +1,19 @@
 use std::{collections::HashMap, sync::Arc};
 
 use axum::{
+    Router,
     body::Bytes,
     extract::{
-        ws::{self, WebSocket},
         Path, State, WebSocketUpgrade,
+        ws::{self, WebSocket},
     },
     http::{HeaderName, HeaderValue, StatusCode},
     response::IntoResponse,
     routing::{get, post},
-    Router,
 };
 use tokio::{
     signal,
-    sync::{mpsc, Mutex},
+    sync::{Mutex, mpsc},
 };
 use tower_http::{
     services::{ServeDir, ServeFile},
@@ -27,7 +27,7 @@ mod extractor;
 
 #[derive(Clone, Default)]
 struct AppState {
-    channels: Arc<Mutex<HashMap<Arc<str>, mpsc::Sender<Bytes>>>>,
+    channels: Arc<Mutex<HashMap<Arc<str>, Arc<mpsc::Sender<Bytes>>>>>,
 }
 
 /// The single page application setup used in production. During development a vite proxy is used to host the app and
@@ -146,6 +146,7 @@ async fn handle_socket(mut socket: WebSocket, State(state): State<AppState>, cli
 
     //TODO decide on buffer size
     let (sender, mut receiver) = mpsc::channel(8);
+    let sender = Arc::from(sender);
 
     // Register sender for this id
     // Immediately drop lock after insert to avoid deadlock
@@ -153,12 +154,12 @@ async fn handle_socket(mut socket: WebSocket, State(state): State<AppState>, cli
         .channels
         .lock()
         .await
-        .insert(client_id.clone(), sender);
+        .insert(client_id.clone(), sender.clone());
 
     if let Some(previous_sender) = previous_sender {
         //TODO think about if this is valid
         tracing::warn!("[{}] Replacing previous subscriber", client_id);
-        // This should close the SSE stream for the other client that used the same id
+        // This should close the websocket for the other client that used the same id
         //TODO test assumption
         drop(previous_sender);
     }
@@ -169,7 +170,7 @@ async fn handle_socket(mut socket: WebSocket, State(state): State<AppState>, cli
             Some(message) = receiver.recv() => {
                 let message = ws::Message::Binary(message.into());
                 if let Err(error) = socket.send(message).await {
-                    tracing::error!("Error sending message through websocket: {}", error);
+                    tracing::error!("[{}] Error sending message through websocket: {}", client_id, error);
                     //TODO remove channel to avoid memory leak. It is the clients responsibility to reestablish a connection
                     break;
                 }
@@ -186,15 +187,25 @@ async fn handle_socket(mut socket: WebSocket, State(state): State<AppState>, cli
     // Try to close gracefully but if not ignore error
     if let Err(error) = socket.close().await {
         tracing::trace!(
-            "[{}] Ignoring error closing websocket: {}",
+            "[{}] Ignoring error from closing disconnected websocket: {}",
             client_id,
             error
         );
     }
+    // It is the clients responsibility to reestablish a new connection
+
+    let mut channels = state.channels.lock().await;
 
     // Remove channel to avoid memory leak
-    // It is the clients responsibility to reestablish a new connection
-    state.channels.lock().await.remove(&client_id);
+    if channels
+        .get(&client_id)
+        .is_none_or(|current_sender| !Arc::ptr_eq(current_sender, &sender))
+    {
+        tracing::debug!("[{}] already removed or replaced", client_id);
+        return;
+    }
+
+    channels.remove(&client_id);
     tracing::debug!("[{}] removed", client_id);
 }
 
