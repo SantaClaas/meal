@@ -1,5 +1,8 @@
-// A worker to persist files on the origin private file system in Safari
-// Safari does not support the FileSystemHandle.createWritable() method
+/**
+ * A worker to persist files on the origin private file system in Safari
+ * Safari does not support the FileSystemHandle.createWritable() method.
+ * This is used to cache photos for preview and to avoid crashes
+ */
 addEventListener("message", async (event) => {
   if (
     !(event.data instanceof SharedArrayBuffer) &&
