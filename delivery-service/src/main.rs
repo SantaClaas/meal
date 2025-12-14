@@ -164,7 +164,7 @@ async fn handle_socket(mut socket: WebSocket, State(state): State<AppState>, cli
         drop(previous_sender);
     }
 
-    tracing::debug!("Websocket established");
+    tracing::debug!("[{}] Websocket established", client_id);
     loop {
         tokio::select! {
             Some(message) = receiver.recv() => {
