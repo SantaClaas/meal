@@ -1,19 +1,23 @@
 // /* @refresh reload */
-import { render } from "solid-js/web";
-import { Show } from "solid-js";
 import { Route, Router } from "@solidjs/router";
+import { Show } from "solid-js";
+import { render } from "solid-js/web";
 import Index from "./routes/index.tsx";
 
-import "./index.css";
-import Invite from "./routes/invite";
-import Join from "./routes/join";
-import Chat from "./routes/chat";
+import { version } from "../../package.json";
+import { AppProvider } from "./components/AppContextProvider.tsx";
 import Camera from "./components/Camera";
 import Preview from "./components/Preview";
-import Debug from "./routes/debug";
-import { version } from "../../package.json";
+import "./index.css";
 import { ROUTES } from "./routes";
-import { AppProvider } from "./components/AppContextProvider.tsx";
+import Chat from "./routes/chat";
+import Debug from "./routes/debug";
+import Invite from "./routes/invite";
+import Join from "./routes/join";
+import { runSocketProxy } from "./socketProxy.ts";
+
+
+void runSocketProxy();
 
 /**
  * Defined in the vite configuration vite.config.ts

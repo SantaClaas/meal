@@ -11,6 +11,7 @@ import {
   openDatabase,
   updateGroup,
 } from "../database";
+import { messagesUrl } from "../messagesUrl";
 
 // Reduce noise
 // @ts-expect-error
@@ -113,8 +114,6 @@ async function updateClient(client: Client) {
   await getClient;
 }
 
-/** The url for messages endpoint. Don't forget the trailing slash. */
-const messagesUrl = new URL("/messages/", self.location.origin);
 async function postMessage(friendId: string, body: Uint8Array<ArrayBuffer>) {
   const url = new URL(friendId, messagesUrl);
   const request = new Request(url, {
@@ -252,6 +251,58 @@ const handler = {
       deleteClient(),
     ]);
   },
+
+  async getClientId() {
+    const client = await getClient;
+    return client.id;
+  },
+
+  async receiveMessage(data: Uint8Array) {
+    const client = await getClient;
+    const message = client.process_message(data);
+    console.debug("Processed message", message.type);
+    void updateClient(client);
+    switch (message.type) {
+      case "Welcome": {
+        console.debug("Processed welcome", message);
+        const configuration = await getConfiguration();
+        const group: Group = {
+          id: message.group_id,
+          friend: message.friend,
+          messages: [],
+          // TODO load user identity that theuser chose to be associated with the key package
+          user: configuration.defaultUser,
+        };
+        await insertGroup(group);
+        broadcastMessage({ type: "Group created", group });
+        return;
+      }
+      case "Private":
+        {
+          console.debug("Processed private message", message);
+          const messageEntry: IncomingMessage = {
+            receivedAt: new Date(),
+            sentAt: new Date(message.content.sent_at),
+            text: message.content.text,
+          };
+
+          const group = await getGroup(message.group_id);
+          if (group === undefined)
+            //TODO are we able to reconstruct the group?
+            throw new Error("Got message for group that does not exist");
+
+          // Assume it is sorted by time
+          group.messages.push(messageEntry);
+          await updateGroup(group);
+          broadcastMessage({
+            type: "Message received",
+            groupId: group.id,
+            message: messageEntry,
+          });
+        }
+        return;
+    }
+  },
 };
 
 export type Handler = typeof handler;
@@ -280,104 +331,3 @@ self.addEventListener("activate", () => {
   console.debug("Taking over message channels");
   return self.clients.claim();
 });
-
-async function receiveMessage(event: MessageEvent<ArrayBuffer>) {
-  const client = await getClient;
-  const message = client.process_message(new Uint8Array(event.data));
-  console.debug("Processed message", message.type);
-  void updateClient(client);
-  switch (message.type) {
-    case "Welcome": {
-      console.debug("Processed welcome", message);
-      const configuration = await getConfiguration();
-      const group: Group = {
-        id: message.group_id,
-        friend: message.friend,
-        messages: [],
-        // TODO load user identity that theuser chose to be associated with the key package
-        user: configuration.defaultUser,
-      };
-      await insertGroup(group);
-      broadcastMessage({ type: "Group created", group });
-      return;
-    }
-    case "Private":
-      {
-        console.debug("Processed private message", message);
-        const messageEntry: IncomingMessage = {
-          receivedAt: new Date(),
-          sentAt: new Date(message.content.sent_at),
-          text: message.content.text,
-        };
-
-        const group = await getGroup(message.group_id);
-        if (group === undefined)
-          //TODO are we able to reconstruct the group?
-          throw new Error("Got message for group that does not exist");
-
-        // Assume it is sorted by time
-        group.messages.push(messageEntry);
-        await updateGroup(group);
-        broadcastMessage({
-          type: "Message received",
-          groupId: group.id,
-          message: messageEntry,
-        });
-      }
-      return;
-  }
-}
-
-function toState(reaedyState: number) {
-  switch (reaedyState) {
-    case WebSocket.CONNECTING:
-      return "connecting";
-    case WebSocket.OPEN:
-      return "open";
-    case WebSocket.CLOSING:
-      return "closing";
-    case WebSocket.CLOSED:
-      return "closed";
-  }
-}
-
-function startKeepAlive(socket: WebSocket) {
-  const intervalId = setInterval(() => {
-    if (socket.readyState !== WebSocket.OPEN) {
-      //TODO clean up
-      console.debug("[Service worker] Socket not open. Not sending keep alive");
-      return;
-    }
-
-    console.debug(
-      "[Service worker] Sending keep alive. Socker state",
-      toState(socket.readyState)
-    );
-    socket.send("keep alive");
-  }, 10_000);
-}
-
-//TODO why did I decide to use a websocket instead of SSE? Replace with SSE
-async function setupWebsocket() {
-  // Assume client id does not change
-  const client = await getClient;
-
-  console.debug("[Service worker] Connecting to socket", client.id);
-  // https:// is automatically replaced with wss://
-  const socketUrl = new URL(client.id, messagesUrl);
-  const socket = new WebSocket(socketUrl);
-  socket.binaryType = "arraybuffer";
-  socket.addEventListener("message", receiveMessage);
-  socket.addEventListener("close", (event) => {
-    console.warn("[Service worker] Socket closed. Not implemented.", event);
-  });
-
-  socket.addEventListener("open", () => startKeepAlive(socket));
-  socket.addEventListener("error", (event) => {
-    console.error("[Service worker] Socket error", event);
-  });
-
-  return socket;
-}
-
-const getSocket = setupWebsocket();
