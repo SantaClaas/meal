@@ -22,6 +22,9 @@ async function setUpWebsocket() {
   // https:// is automatically replaced with wss://
   const socketUrl = new URL(clientId, messagesUrl);
   const socket = new WebSocket(socketUrl);
+  const { promise: open, resolve } = Promise.withResolvers<void>();
+  socket.addEventListener("open", () => resolve());
+
   socket.binaryType = "arraybuffer";
 
   socket.addEventListener("message", async (event) => {
@@ -31,6 +34,8 @@ async function setUpWebsocket() {
     await handle.receiveMessage(new Uint8Array(event.data));
   });
 
+  await open;
+  console.debug("[Websocket] open");
   return socket;
 }
 
