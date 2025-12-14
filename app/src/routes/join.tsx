@@ -100,10 +100,10 @@ export default function Join() {
           autocomplete="username"
           required
           disabled={configuration.loading}
-          value={configuration()?.defaultUser?.name}
+          value={configuration()?.defaultUser?.name ?? ""}
         />
 
-        <button type="submit" name="accept">
+        <button type="submit" name="accept" disabled={keyPackage.loading}>
           Accept
         </button>
       </form>

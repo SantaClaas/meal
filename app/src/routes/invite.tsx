@@ -143,7 +143,9 @@ export default function Invite() {
 
     //TODO check if user has automatic accept enabled
     //TODO check if this welcome is for this key package
+    console.debug("Group created. Navigating to chat", event.data.group.id);
     navigate(ROUTES.chat(event.data.group.id));
+    console.debug("Navigated to chat");
   });
 
   const [configuration] = createResource(getConfiguration);

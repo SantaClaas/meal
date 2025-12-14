@@ -20,6 +20,7 @@ export function AppProvider(properties: ParentProps) {
     status: "ready",
     groups: [],
     getGroup(groupId: string): Group | undefined {
+      console.debug("Getting group", groupId, "from groups", app.groups);
       // Often used groups are at the top so this should be fine
       return app.groups?.find((group) => group.id === groupId);
     },
@@ -30,6 +31,7 @@ export function AppProvider(properties: ParentProps) {
 
     switch (event.data.type) {
       case "Group created": {
+        console.debug("Group created. Adding to groups", event.data.group);
         const group = event.data.group;
         setApp("groups", app.groups.length, group);
         return;
