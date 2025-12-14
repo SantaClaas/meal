@@ -1,4 +1,4 @@
-import { test, expect, Page } from "@playwright/test";
+import { test, expect, Page, Browser } from "@playwright/test";
 import { GenericContainer } from "testcontainers";
 
 // test.beforeEach(async () => {
@@ -23,11 +23,25 @@ async function readClipboard(page: Page) {
   });
 }
 
-test("A user can start a chat with another user", async ({ page, context }) => {
+async function setUpFriend(browser: Browser): Promise<{
+  page: Page;
+  [Symbol.asyncDispose](): Promise<void>;
+}> {
+  const friendContext = await browser.newContext();
+  const friendPage = await friendContext.newPage();
+
+  return { page: friendPage, [Symbol.asyncDispose]: friendContext.close };
+}
+
+test("A user can start a chat with another user", async ({
+  page,
+  context,
+  browser,
+}) => {
+  const friendSetup = setUpFriend(browser);
   await page.goto("http://localhost:5173/invite");
 
   // Page ready
-
   const copyButton = page.getByText("Copy");
   // await page.locator("button:has-text('Copy')").waitFor({ state: "attached" });
   await copyButton.waitFor({ state: "visible" });
@@ -44,4 +58,29 @@ test("A user can start a chat with another user", async ({ page, context }) => {
   const invite = await readClipboard(page);
   // Starts with "http://localhost:5173/join/"
   expect(invite).toMatch(/^http:\/\/localhost:5173\/join\//);
+
+
+
+  await using friend = await friendSetup;
+  await friend.page.goto(invite);
+  const acceptButton = friend.page.getByText("Accept");
+  await acceptButton.waitFor({ state: "visible" });
+
+  const nameInputLabel = friend.page.getByText("Your name");
+  await nameInputLabel.click();
+
+  await friend.page.keyboard.type("test friend");
+
+  // await friend.page.keyboard.press("Enter");
+  await acceptButton.click();
+
+  // Wait for navigation
+  const chatUrlPattern = /^http:\/\/localhost:5173\/chat\//;
+  await friend.page.waitForURL(chatUrlPattern);
+  await friend.page.waitForSelector("h1:has-text('Chat')");
+
+  await page.waitForURL(chatUrlPattern);
+
+
+
 });

@@ -212,6 +212,7 @@ const handler = {
     };
 
     await insertGroup(group);
+    broadcastMessage({ type: "Group created", group });
     return group;
   },
 
@@ -327,6 +328,35 @@ async function receiveMessage(event: MessageEvent<ArrayBuffer>) {
   }
 }
 
+function toState(reaedyState: number) {
+  switch (reaedyState) {
+    case WebSocket.CONNECTING:
+      return "connecting";
+    case WebSocket.OPEN:
+      return "open";
+    case WebSocket.CLOSING:
+      return "closing";
+    case WebSocket.CLOSED:
+      return "closed";
+  }
+}
+
+function startKeepAlive(socket: WebSocket) {
+  const intervalId = setInterval(() => {
+    if (socket.readyState !== WebSocket.OPEN) {
+      //TODO clean up
+      console.debug("[Service worker] Socket not open. Not sending keep alive");
+      return;
+    }
+
+    console.debug(
+      "[Service worker] Sending keep alive. Socker state",
+      toState(socket.readyState)
+    );
+    socket.send("keep alive");
+  }, 10_000);
+}
+
 //TODO why did I decide to use a websocket instead of SSE? Replace with SSE
 async function setupWebsocket() {
   // Assume client id does not change
@@ -339,7 +369,12 @@ async function setupWebsocket() {
   socket.binaryType = "arraybuffer";
   socket.addEventListener("message", receiveMessage);
   socket.addEventListener("close", (event) => {
-    console.warn("Socket closed. Not implemented.", event);
+    console.warn("[Service worker] Socket closed. Not implemented.", event);
+  });
+
+  socket.addEventListener("open", () => startKeepAlive(socket));
+  socket.addEventListener("error", (event) => {
+    console.error("[Service worker] Socket error", event);
   });
 
   return socket;
