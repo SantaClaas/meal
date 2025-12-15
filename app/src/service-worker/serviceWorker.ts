@@ -1,7 +1,7 @@
 import { precacheAndRoute } from "workbox-precaching";
 import init, { Client, DecodedPackage, Friend } from "meal-core";
 import { expose } from "../crackle";
-import { Group, IncomingMessage } from "../database/schema";
+import { Group, IncomingMessage, OutgoingMessage } from "../database/schema";
 import { broadcastMessage } from "../broadcast";
 import {
   deleteDatabase,
@@ -137,7 +137,7 @@ function assertNotShared(
     throw new Error("Uint8Array uses a SharedArrayBuffer");
 }
 
-export type OutgoingMessage = {
+type SendMessageRequest = {
   groupId: string;
   sentAt: Date;
   text: string;
@@ -228,18 +228,32 @@ const handler = {
       throw new Error(`Unexpected status code response ${response.status}`);
   },
 
-  async sendMessage(message: OutgoingMessage) {
-    const group = await getGroup(message.groupId);
+  async sendMessage(request: SendMessageRequest) {
+    const group = await getGroup(request.groupId);
     if (group === undefined) throw new Error("Group not found");
+    const message: OutgoingMessage = {
+      type: "outgoing",
+      sentAt: request.sentAt,
+      text: request.text,
+    };
+    group.messages.push(message);
+
+    //TODO update group in transaction to avoid race conditions
+    const groupUpdate = updateGroup(group);
+    broadcastMessage({
+      type: "Message added",
+      groupId: group.id,
+      message,
+    });
 
     const client = await getClient;
     const body = client.send_message(group.id, {
-      sent_at: message.sentAt.toISOString(),
-      text: message.text,
+      sent_at: request.sentAt.toISOString(),
+      text: request.text,
     });
 
     assertNotShared(body);
-    await postMessage(group.friend.id, body);
+    await Promise.all([postMessage(group.friend.id, body), groupUpdate]);
   },
 
   async wipe() {
@@ -281,6 +295,7 @@ const handler = {
         {
           console.debug("Processed private message", message);
           const messageEntry: IncomingMessage = {
+            type: "incoming",
             receivedAt: new Date(),
             sentAt: new Date(message.content.sent_at),
             text: message.content.text,
@@ -295,7 +310,7 @@ const handler = {
           group.messages.push(messageEntry);
           await updateGroup(group);
           broadcastMessage({
-            type: "Message received",
+            type: "Message added",
             groupId: group.id,
             message: messageEntry,
           });
