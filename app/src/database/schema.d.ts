@@ -9,11 +9,22 @@ export type User = {
    */
   name?: string;
 };
+
 export type IncomingMessage = {
-  sentAt: Date;
+  type: "incoming";
   receivedAt: Date;
+  sentAt: Date;
   text: string;
 };
+
+export type OutgoingMessage = {
+  type: "outgoing";
+  sentAt: Date;
+  text: string;
+};
+
+export type Message = IncomingMessage | OutgoingMessage;
+
 export type Group = {
   id: string;
   /**
@@ -21,7 +32,7 @@ export type Group = {
    */
   user?: User;
   friend: Friend;
-  messages: IncomingMessage[];
+  messages: Message[];
 };
 
 interface Schema extends DBSchema {
