@@ -1,15 +1,6 @@
 import { Navigate, useParams } from "@solidjs/router";
-import {
-  createEffect,
-  createResource,
-  For,
-  JSX,
-  Show,
-  Suspense,
-} from "solid-js";
-import { getGroup } from "../database";
+import { For, JSX, Show, Suspense } from "solid-js";
 import { setupCrackle } from "../useCrackle";
-import { useBroadcast } from "../broadcast";
 import { useApp } from "../components/AppContextProvider";
 
 // TODO take this inspiration https://firebasestorage.googleapis.com/v0/b/design-spec/o/projects%2Fgoogle-material-3%2Fimages%2Fly7219l1-1.png?alt=media&token=67ff316b-7515-4e9f-9971-4e580290b1f2
@@ -21,10 +12,11 @@ export default function Chat() {
     return <Navigate href="/" />;
   }
 
+  const groupId: string = parameters.groupId;
+
   const app = useApp();
 
-  const group = () =>
-    app.status === "ready" && app.getGroup(parameters.groupId);
+  const group = () => app.status === "ready" && app.getGroup(groupId);
   // const [group, { mutate }] = createResource(parameters.groupId, getGroup);
   // createEffect(() => {
   //   const currentGroup = group();
@@ -58,7 +50,7 @@ export default function Chat() {
     const handle = await setupCrackle;
 
     await handle.sendMessage({
-      groupId: parameters.groupId,
+      groupId,
       sentAt: new Date(),
       text,
     });

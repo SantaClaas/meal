@@ -245,7 +245,7 @@ const handler = {
   async wipe() {
     // Wipe client
     await Promise.all([
-      getSocket.then((socket) => socket.close()),
+      broadcastMessage({ type: "Wipe" }),
       //TODO test what happens if clients have open connections to the database
       deleteDatabase(),
       deleteClient(),
