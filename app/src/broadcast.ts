@@ -2,7 +2,7 @@ import { onCleanup } from "solid-js";
 import { Group, IncomingMessage } from "./database/schema";
 
 export const BROADCAST_NAME = "meal";
-const broadcast = new BroadcastChannel(BROADCAST_NAME);
+export const broadcast = new BroadcastChannel(BROADCAST_NAME);
 
 export type BroadcastMessage =
   | {
@@ -13,6 +13,9 @@ export type BroadcastMessage =
       type: "Message received";
       groupId: string;
       message: IncomingMessage;
+    }
+  | {
+      type: "Wipe";
     };
 
 export function broadcastMessage(message: BroadcastMessage) {

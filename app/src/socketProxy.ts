@@ -7,6 +7,7 @@
  * See more [Leader election](https://en.wikipedia.org/wiki/Leader_election)
  */
 
+import { broadcast, BroadcastMessage } from "./broadcast";
 import { messagesUrl } from "./messagesUrl";
 import { setupCrackle } from "./useCrackle";
 
@@ -41,8 +42,19 @@ async function setUpWebsocket() {
 
 async function runSocket() {
   const closeController = new AbortController();
-  // Respond to keep alive messages from other tabs
+
   const socket = await setUpWebsocket();
+  broadcast.addEventListener(
+    "message",
+    (event: MessageEvent<BroadcastMessage>) => {
+      if (event.data.type !== "Wipe") return;
+      socket.close();
+    },
+    {
+      once: true,
+      signal: closeController.signal,
+    }
+  );
 
   socket.addEventListener(
     "error",
