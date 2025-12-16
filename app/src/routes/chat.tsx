@@ -16,27 +16,10 @@ export default function Chat() {
 
   const app = useApp();
 
-  const group = () => app.status === "ready" && app.getGroup(groupId);
-  // const [group, { mutate }] = createResource(parameters.groupId, getGroup);
-  // createEffect(() => {
-  //   const currentGroup = group();
-  //   if (currentGroup === undefined) return;
-
-  //   // Can be used in effects because the internal onCleanup unsubscribes from the event when this effect is cleaned up
-  //   useBroadcast((event) => {
-  //     if (
-  //       event.data.type !== "Message received" ||
-  //       event.data.groupId !== parameters.groupId
-  //     )
-  //       return;
-
-  //     const message = event.data.message;
-  //     mutate((group) => {
-  //       currentGroup.messages.push(message);
-  //       return group;
-  //     });
-  //   });
-  // });
+  const group = () => {
+    if (app.status !== "ready") return;
+    return app.getGroup(groupId);
+  };
 
   async function handleSend(
     event: Parameters<JSX.EventHandler<HTMLFormElement, SubmitEvent>>[0]
