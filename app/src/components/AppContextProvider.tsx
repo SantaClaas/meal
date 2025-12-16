@@ -36,7 +36,7 @@ export function AppProvider(properties: ParentProps) {
         setApp("groups", app.groups.length, group);
         return;
       }
-      case "Message received": {
+      case "Message added": {
         const { groupId, message } = event.data;
         setApp(
           "groups",
