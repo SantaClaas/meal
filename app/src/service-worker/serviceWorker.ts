@@ -6,10 +6,9 @@ import { broadcastMessage } from "../broadcast";
 import {
   deleteDatabase,
   getConfiguration,
-  getGroup,
   insertGroup,
   openDatabase,
-  updateGroup,
+  pushMessage,
 } from "../database";
 import { messagesUrl } from "../messagesUrl";
 
@@ -138,6 +137,7 @@ function assertNotShared(
 }
 
 type SendMessageRequest = {
+  friendId: string;
   groupId: string;
   sentAt: Date;
   text: string;
@@ -229,31 +229,29 @@ const handler = {
   },
 
   async sendMessage(request: SendMessageRequest) {
-    const group = await getGroup(request.groupId);
-    if (group === undefined) throw new Error("Group not found");
     const message: OutgoingMessage = {
       type: "outgoing",
       sentAt: request.sentAt,
       text: request.text,
     };
-    group.messages.push(message);
 
-    //TODO update group in transaction to avoid race conditions
-    const groupUpdate = updateGroup(group);
     broadcastMessage({
       type: "Message added",
-      groupId: group.id,
+      groupId: request.groupId,
       message,
     });
 
+    // Storing the message should happen even if sending fails as that can be retried
+    const storeMessage = pushMessage(request.groupId, message);
+
     const client = await getClient;
-    const body = client.send_message(group.id, {
+    const body = client.send_message(request.groupId, {
       sent_at: request.sentAt.toISOString(),
       text: request.text,
     });
 
     assertNotShared(body);
-    await Promise.all([postMessage(group.friend.id, body), groupUpdate]);
+    await Promise.all([postMessage(request.friendId, body), storeMessage]);
   },
 
   async wipe() {
@@ -301,17 +299,12 @@ const handler = {
             text: message.content.text,
           };
 
-          const group = await getGroup(message.group_id);
-          if (group === undefined)
-            //TODO are we able to reconstruct the group?
-            throw new Error("Got message for group that does not exist");
+          await pushMessage(message.group_id, messageEntry);
 
-          // Assume it is sorted by time
-          group.messages.push(messageEntry);
-          await updateGroup(group);
+          // Need to store message before showing it
           broadcastMessage({
             type: "Message added",
-            groupId: group.id,
+            groupId: message.group_id,
             message: messageEntry,
           });
         }

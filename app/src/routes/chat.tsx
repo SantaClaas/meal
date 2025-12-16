@@ -30,9 +30,13 @@ export default function Chat() {
     ).value;
     event.currentTarget.reset();
 
+    const currentGroup = group();
+    if (currentGroup === undefined) throw new Error("Expected group");
+
     const handle = await setupCrackle;
 
     await handle.sendMessage({
+      friendId: currentGroup.friend.id,
       groupId,
       sentAt: new Date(),
       text,

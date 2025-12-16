@@ -1,5 +1,5 @@
 import { deleteDB, openDB } from "idb";
-import { Group, Schema } from "./schema";
+import { Group, Message, Schema } from "./schema";
 
 const NAME = "meal";
 export const openDatabase = openDB<Schema>(NAME, 1, {
@@ -49,26 +49,25 @@ export async function getGroups(): Promise<Group[]> {
   return (await store.getAll()) as Group[];
 }
 
-export async function getGroup(groupId: string): Promise<Group | undefined> {
-  const database = await openDatabase;
-  const transaction = database.transaction("groups", "readonly");
-  const store = transaction.objectStore("groups");
-  return (await store.get(groupId)) as Group;
-}
-
 export async function* streamGroups() {
   const database = await openDatabase;
   const transaction = database.transaction("groups", "readonly");
   for await (const cursor of transaction.store) {
-    yield cursor.value as Group;
+    yield cursor.value;
   }
 }
 
-export async function updateGroup(group: Group) {
+export async function pushMessage(groupId: string, message: Message) {
   const database = await openDatabase;
   const transaction = database.transaction("groups", "readwrite");
   const store = transaction.objectStore("groups");
-  store.put(group);
+  const group = await store.get(groupId);
+  if (group === undefined) throw new Error("Group not found");
+
+  group.messages.push(message);
+
+  await store.put(group);
+  return group;
 }
 
 export async function insertGroup(group: Group) {
