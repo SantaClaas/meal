@@ -48,5 +48,8 @@ interface Schema extends DBSchema {
     isOnboarded: boolean;
   };
 
-  groups: Group;
+  groups: {
+    value: Group;
+    key: string;
+  };
 }
