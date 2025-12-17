@@ -81,6 +81,34 @@ test("A user can start a chat with another user", async ({
 
   await page.waitForURL(chatUrlPattern);
 
+  const header = page.getByRole('heading', { name: 'Chat' });
+  await expect(header).toBeVisible();
 
+  const input = page.getByRole("textbox");
+  await expect(input).toBeVisible();
+  await expect(input).toHaveValue("");
+  const testMessage = "test message 1";
+  await input.fill(testMessage);
+  const sendButton = page.getByRole("button", { name: "Send" });
+  await expect(sendButton).toHaveText("Send");
+  await expect(sendButton).toBeVisible();
+  await sendButton.click();
 
+  const newMessage = page.getByText(testMessage);
+  expect(newMessage).toBeVisible();
+
+  const friendNewMessage = friend.page.getByText(testMessage);
+  expect(friendNewMessage).toBeVisible();
+
+  // Send message back
+  const testMessage2 = "test message 2";
+  const friendInput = friend.page.getByRole("textbox");
+  await friendInput.fill(testMessage2);
+  await friend.page.keyboard.press("Enter");
+
+  const friendNewMessage2 = friend.page.getByText(testMessage2);
+  expect(friendNewMessage2).toBeVisible();
+
+  const newMessage2 = page.getByText(testMessage2);
+  expect(newMessage2).toBeVisible();
 });
