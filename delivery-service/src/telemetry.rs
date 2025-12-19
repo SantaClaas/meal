@@ -12,7 +12,6 @@ pub(super) fn setup() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let exporter = opentelemetry_otlp::SpanExporter::builder()
         .with_tonic()
         .with_endpoint("http://localhost:4317")
-        // .with_http()
         .build()?;
 
     let resource = Resource::builder()
@@ -39,6 +38,11 @@ pub(super) fn setup() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let tracer = trace_provider.tracer(format!("{}-tracer", env!("CARGO_PKG_NAME")));
 
     tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+                format!("{}=debug,tower_http=debug", env!("CARGO_CRATE_NAME")).into()
+            }),
+        )
         .with(tracing_subscriber::fmt::layer())
         .with(OpenTelemetryLayer::new(tracer))
         .init();
