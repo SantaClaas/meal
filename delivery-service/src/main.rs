@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
+use ::tracing::{debug, error};
 use axum::{
     Router,
     body::Bytes,
@@ -19,11 +20,12 @@ use tower_http::{
     services::{ServeDir, ServeFile},
     set_header::SetResponseHeaderLayer,
     set_status::SetStatus,
+    trace::TraceLayer,
 };
-use tracing::{debug, error};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use tracing::Level;
 
 mod extractor;
+mod telemetry;
 
 #[derive(Clone, Default)]
 struct AppState {
@@ -68,17 +70,8 @@ async fn shutdown_signal() {
 }
 
 #[tokio::main]
-async fn main() {
-    // To debug axum extractor rejections see https://docs.rs/axum/latest/axum/extract/index.html#logging-rejections
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-                format!("{}=debug,tower_http=debug", env!("CARGO_CRATE_NAME")).into()
-            }),
-        )
-        .with(tracing_subscriber::fmt::layer())
-        .init();
-
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    telemetry::setup()?;
     tracing::info!("Starting");
 
     let app = Router::new()
@@ -98,6 +91,7 @@ async fn main() {
             HeaderName::from_static("cross-origin-embedder-policy"),
             HeaderValue::from_static("require-corp"),
         ))
+        .layer(TraceLayer::new_for_http())
         .with_state(Default::default());
 
     // It might become annoying to get the mac pop up for running on 0.0.0.0 so change to localhost instead
@@ -112,11 +106,13 @@ async fn main() {
     tracing::debug!("listening on {}", listener.local_addr().unwrap());
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
-        .await
-        .unwrap();
+        .await?;
+
+    Ok(())
 }
 
 /// This endpoint receives messages sent by clients to be delivered to other clients
+#[tracing::instrument(skip(state))]
 async fn create_message(
     State(state): State<AppState>,
     Path(to): Path<Arc<str>>,
@@ -138,8 +134,11 @@ async fn create_message(
     StatusCode::CREATED
 }
 
+#[tracing::instrument(skip(socket, state))]
 async fn handle_socket(mut socket: WebSocket, State(state): State<AppState>, client_id: Arc<str>) {
     debug!("[{}] connected", client_id);
+    let span = tracing::span!(Level::INFO, "handling");
+    let _enter = span.enter();
     //TODO keep alive
     //TODO add client authentication to avoid session hijacking
     // Hijackers can deny messages to the client and analyze meta data but not read messages if they don't have the clients credentials
@@ -162,6 +161,7 @@ async fn handle_socket(mut socket: WebSocket, State(state): State<AppState>, cli
         // This should close the websocket for the other client that used the same id
         //TODO test assumption
         drop(previous_sender);
+        tracing::debug!("[{}] dropped previous sender", client_id);
     }
 
     tracing::debug!("[{}] Websocket established", client_id);
@@ -210,6 +210,8 @@ async fn handle_socket(mut socket: WebSocket, State(state): State<AppState>, cli
 }
 
 /// Handles requests for listening to server sent events (SSE) that are used to send incoming messages from the server to the client
+
+#[tracing::instrument(skip(state))]
 async fn subscribe_messages(
     state: State<AppState>,
     websocket: WebSocketUpgrade,
