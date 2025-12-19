@@ -5,10 +5,15 @@ edition = "2024"
 
 [dependencies]
 axum = { workspace = true, features = ["macros", "ws"] }
+opentelemetry = "0.31.0"
+opentelemetry-otlp = { version = "0.31.0", features = ["tonic", "grpc-tonic"] }
+opentelemetry-semantic-conventions = "0.31.0"
+opentelemetry_sdk = "0.31.0"
 serde = { workspace = true, features = ["derive", "rc"] }
 thiserror = { workspace = true }
 tls_codec = { workspace = true }
-tokio = { workspace = true, features = ["full"] }
-tower-http = { workspace = true, features = ["fs", "set-header"] }
+tokio = { workspace = true, features = ["full", "tracing"] }
+tower-http = { workspace = true, features = ["fs", "set-header", "trace"] }
 tracing = "0.1.40"
+tracing-opentelemetry = "0.32.0"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
