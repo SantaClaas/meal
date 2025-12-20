@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 axum = { workspace = true, features = ["macros", "ws"] }
+nanoid = "0.4.0"
 opentelemetry = "0.31.0"
 opentelemetry-otlp = { version = "0.31.0", features = ["tonic", "grpc-tonic"] }
 opentelemetry-semantic-conventions = "0.31.0"

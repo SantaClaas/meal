@@ -24,12 +24,16 @@ use tower_http::{
 };
 use tracing::Level;
 
+use crate::actor::switchboard;
+
+mod actor;
 mod extractor;
 mod telemetry;
 
 #[derive(Clone, Default)]
 struct AppState {
     channels: Arc<Mutex<HashMap<Arc<str>, Arc<mpsc::Sender<Bytes>>>>>,
+    switchboard: switchboard::Handle,
 }
 
 /// The single page application setup used in production. During development a vite proxy is used to host the app and
@@ -111,6 +115,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Ok(())
 }
 
+struct Droppochino(String);
+
+impl Drop for Droppochino {
+    fn drop(&mut self) {
+        println!("Droppochino {}", self.0);
+    }
+}
+
 /// This endpoint receives messages sent by clients to be delivered to other clients
 #[tracing::instrument(skip(state))]
 async fn create_message(
@@ -137,6 +149,8 @@ async fn create_message(
 #[tracing::instrument(skip(socket, state))]
 async fn handle_socket(mut socket: WebSocket, State(state): State<AppState>, client_id: Arc<str>) {
     debug!("[{}] connected", client_id);
+
+    let _droppochino = Droppochino(client_id.to_string());
     let span = tracing::span!(Level::INFO, "handling");
     let _enter = span.enter();
     //TODO keep alive
@@ -169,6 +183,7 @@ async fn handle_socket(mut socket: WebSocket, State(state): State<AppState>, cli
         tokio::select! {
             Some(message) = receiver.recv() => {
                 let message = ws::Message::Binary(message.into());
+                tracing::debug!("[{}] Sending message through websocket", client_id);
                 if let Err(error) = socket.send(message).await {
                     tracing::error!("[{}] Error sending message through websocket: {}", client_id, error);
                     //TODO remove channel to avoid memory leak. It is the clients responsibility to reestablish a connection
@@ -177,8 +192,13 @@ async fn handle_socket(mut socket: WebSocket, State(state): State<AppState>, cli
             },
             // We only use the socket unidirectional for now
             // but we want to know when the client closes the socket
-            Some(Ok(_)) = socket.recv() => {},
-            else => break,
+            Some(Ok(message)) = socket.recv() => {
+                tracing::debug!("[{}] Received message through websocket: {:?}", client_id, message);
+            },
+            else => {
+                tracing::debug!("[{}] Handling else", client_id);
+                break;
+            },
         }
     }
 
