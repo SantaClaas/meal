@@ -12,7 +12,7 @@ use bollard::container::{self};
 
 use serde::Deserialize;
 
-use crate::{redirect_to, TugState};
+use crate::{redirect_to, route::error, TugState};
 
 use super::{
     get_container,
@@ -56,7 +56,7 @@ impl IntoResponse for GetVariablesError {
 pub(in crate::route) async fn get_variables(
     State(state): State<TugState>,
     Path(container_id): Path<Arc<str>>,
-) -> Result<VariablesTemplate, GetVariablesError> {
+) -> Result<VariablesTemplate, error::Response> {
     let container = get_container(&state.docker, &container_id).await?;
 
     let variables = container
@@ -143,7 +143,7 @@ pub(in crate::route) async fn update(
     state: State<TugState>,
     Path(container_id): Path<Arc<str>>,
     Form(request): Form<UpdateRequest>,
-) -> Result<Redirect, ModificationError> {
+) -> Result<Redirect, error::Response> {
     let new_container_id = modify(
         state,
         container_id,
@@ -169,7 +169,7 @@ pub(in crate::route) async fn delete(
     state: State<TugState>,
     Path(container_id): Path<Arc<str>>,
     Form(request): Form<DeleteRequest>,
-) -> Result<Redirect, ModificationError> {
+) -> Result<Redirect, error::Response> {
     let new_container_id = modify(
         state,
         container_id,

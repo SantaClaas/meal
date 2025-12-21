@@ -1,4 +1,5 @@
 mod container;
+mod error;
 mod middleware;
 mod token;
 

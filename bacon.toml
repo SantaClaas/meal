@@ -116,3 +116,10 @@ need_stdout = true
 background = false
 on_change_strategy = "kill_then_restart"
 watch = ["templates"]
+
+[jobs.tugboat]
+command = ["cargo", "run", "--package", "tugboat"]
+need_stdout = true
+background = false
+on_change_strategy = "kill_then_restart"
+watch = ["templates"]

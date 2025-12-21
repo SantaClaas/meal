@@ -29,7 +29,7 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 uuid = "1.11.0"
 #TODO make this only available in development. Not needed in production.
 dotenvy = "0.15.7"
-libsql = { version = "0.6.0", features = ["encryption"] }
+libsql = { version = "0.9.29", features = ["encryption"] }
 nanoid = "0.4.0"
 getrandom = "0.2.15"
 hkdf = "0.12.4"

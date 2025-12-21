@@ -24,7 +24,10 @@ use libsql::named_params;
 use serde::Deserialize;
 use tokio_stream::StreamExt;
 
-use crate::{route::token::Token, TugState};
+use crate::{
+    route::{error, token::Token},
+    TugState,
+};
 
 use super::token;
 
@@ -175,10 +178,12 @@ async fn get_images(docker: &Docker) -> Result<Vec<Arc<str>>, bollard::errors::E
 
 pub(super) async fn get_index(
     State(state): State<TugState>,
-) -> Result<IndexTemplate, GetIndexError> {
-    IndexTemplate::from(&state.docker)
+) -> Result<IndexTemplate, error::Response> {
+    let template = IndexTemplate::from(&state.docker)
         .await
-        .map_err(GetIndexError)
+        .map_err(GetIndexError)?;
+
+    Ok(template)
 }
 
 #[derive(Deserialize)]
@@ -216,13 +221,6 @@ pub(super) enum CreateError {
     StartContainerError(bollard::errors::Error),
     #[error("Error getting index template: {0}")]
     GetIndexError(#[from] CreateIndexTemplateError),
-}
-
-impl IntoResponse for CreateError {
-    fn into_response(self) -> Response {
-        tracing::error!("Error creating container: {:?}", self);
-        StatusCode::INTERNAL_SERVER_ERROR.into_response()
-    }
 }
 
 mod label {
@@ -315,7 +313,7 @@ async fn update_container_id(
 pub(super) async fn create(
     State(state): State<TugState>,
     axum_extra::extract::Form(request): axum_extra::extract::Form<CreateRequest>,
-) -> Result<Redirect, CreateError> {
+) -> Result<Redirect, error::Response> {
     // Pull latest image
     tracing::debug!("Pulling image");
     let options = Some(CreateImageOptions {
@@ -422,7 +420,7 @@ pub(super) enum StatementError {
 pub(super) async fn create_token(
     State(state): State<TugState>,
     Path(container_id): Path<Arc<str>>,
-) -> Result<CreateTokenResultTemplate, CreateTokenError> {
+) -> Result<CreateTokenResultTemplate, error::Response> {
     // Check if container exists
     let _container = get_container(&state.docker, &container_id).await?;
 
@@ -431,7 +429,7 @@ pub(super) async fn create_token(
     let hash = token.hash()?;
 
     // Store hash in database
-    let mut statement = state
+    let statement = state
         .connection
         .prepare(
             "INSERT OR REPLACE INTO tokens (container_id, token_hash) VALUES (:container_id, :token_hash)",
@@ -654,7 +652,7 @@ impl IntoResponse for StopError {
 pub(in crate::route) async fn stop_container(
     State(state): State<TugState>,
     Path(container_id): Path<Arc<str>>,
-) -> Result<Redirect, StopError> {
+) -> Result<Redirect, error::Response> {
     tracing::debug!("Stopping container {container_id}");
     state
         .docker
@@ -678,7 +676,7 @@ impl IntoResponse for StartError {
 pub(in crate::route) async fn start_container(
     State(state): State<TugState>,
     Path(container_id): Path<Arc<str>>,
-) -> Result<Redirect, StartError> {
+) -> Result<Redirect, error::Response> {
     tracing::debug!("Starting container {container_id}");
     state
         .docker
@@ -702,7 +700,7 @@ impl IntoResponse for DeleteError {
 pub(in crate::route) async fn delete(
     State(state): State<TugState>,
     Path(container_id): Path<Arc<str>>,
-) -> Result<Redirect, DeleteError> {
+) -> Result<Redirect, error::Response> {
     tracing::debug!("Deleting container {container_id}");
     state
         .docker
@@ -715,7 +713,7 @@ pub(in crate::route) async fn delete(
 pub(in crate::route) async fn pull_update(
     state: State<TugState>,
     path: Path<Arc<str>>,
-) -> Result<Redirect, UpdateError> {
+) -> Result<Redirect, error::Response> {
     update_image(state, path).await?;
     Ok(Redirect::to("/containers"))
 }

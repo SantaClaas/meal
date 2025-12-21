@@ -1,0 +1,22 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<main class="p-4">
+
+    <h1>Error</h1>
+
+    <p>An error occurred while processing your request.</p>
+
+    <pre>{{ error }}</pre>
+
+    <a href="/">Let's go home</a>
+
+</main>
+
+{% endblock %}
+
+{% block scripts %}
+{% endblock %}
+
+{% call super() %}

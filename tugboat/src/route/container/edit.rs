@@ -9,7 +9,7 @@ use axum::{
 use axum_extra::extract::Form;
 use serde::Deserialize;
 
-use crate::{redirect_to, TugState};
+use crate::{redirect_to, route::error, TugState};
 
 use super::{
     get_container,
@@ -132,7 +132,7 @@ pub(in crate::route) async fn create(
     state: State<TugState>,
     Path(container_id): Path<Arc<str>>,
     Form(request): Form<UpdateRequest>,
-) -> Result<Redirect, ModificationError> {
+) -> Result<Redirect, error::Response> {
     let new_container_id = modify(
         state,
         container_id,
