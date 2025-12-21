@@ -1,6 +1,6 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
-use ::tracing::{debug, error};
+use ::tracing::debug;
 use axum::{
     Router,
     body::Bytes,
@@ -32,7 +32,6 @@ mod telemetry;
 
 #[derive(Clone, Default)]
 struct AppState {
-    channels: Arc<Mutex<HashMap<Arc<str>, Arc<mpsc::Sender<Bytes>>>>>,
     switchboard: switchboard::Handle,
 }
 
