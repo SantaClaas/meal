@@ -33,11 +33,15 @@ impl WebSocket {
     fn handle_socket_message(&mut self, message: ws::Message) -> ControlFlow<()> {
         match message {
             ws::Message::Close(_) => {
-                tracing::debug!("[{}] Websocket closed", self.id);
+                tracing::debug!("[WebSockets/{}] Websocket closed", self.id);
                 ControlFlow::Break(())
             }
             other => {
-                tracing::debug!("[{}] Unexpected Websocket message: {:?}", self.id, other);
+                tracing::debug!(
+                    "[WebSockets/{}] Unexpected Websocket message: {:?}",
+                    self.id,
+                    other
+                );
                 ControlFlow::Continue(())
             }
         }
@@ -49,18 +53,18 @@ impl WebSocket {
                 message = self.receiver.recv() => match message {
                     Some(message) => self.handle_message(message).await?,
                     None => {
-                        tracing::debug!("[{}] Actor send channel closed", self.id);
+                        tracing::debug!("[WebSockets/{}] Actor send channel closed", self.id);
                         return Ok(());
                     },
                 },
                 message = self.socket.recv() => match message {
                     Some(Ok(message)) => if self.handle_socket_message(message).is_break() { return Ok(()); },
                     Some(Err(error)) => {
-                        tracing::debug!("[{}] websocket error: {}", self.id, error);
+                        tracing::debug!("[WebSockets/{}] websocket error: {}", self.id, error);
                         return Err(error.into());
                     },
                     None => {
-                        tracing::debug!("[{}] client closed websocket", self.id);
+                        tracing::debug!("[WebSockets/{}] client closed websocket", self.id);
                         return Ok(());
                     }
                 },

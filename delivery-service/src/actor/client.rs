@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, ops::ControlFlow, sync::Arc};
 
 use tokio::{sync::mpsc, task::JoinSet};
 
@@ -24,11 +24,16 @@ impl Client {
         }
     }
 
-    async fn handle_message(&mut self, message: Message) {
+    async fn handle_message(&mut self, message: Message) -> ControlFlow<()> {
         match message {
             Message::Send(data) => {
                 let mut sends = JoinSet::new();
                 for socket in self.sockets.values().cloned() {
+                    tracing::debug!(
+                        "[Clients/{}] Sending message to socket {}",
+                        self.id,
+                        socket.id
+                    );
                     let data = data.clone();
                     sends
                         .spawn(async move { (socket.id.clone(), socket.send_message(data).await) });
@@ -40,19 +45,29 @@ impl Client {
                         continue;
                     };
 
-                    tracing::debug!("[{}] Removing closed websocket receiver {}", self.id, id);
+                    tracing::debug!(
+                        "[Clients/{}] Removing closed websocket receiver {}",
+                        self.id,
+                        id
+                    );
 
                     self.sockets.remove(&id);
                 }
 
                 // If there are no more sockets, remove the client
                 if self.sockets.is_empty() {
-                    tracing::debug!("[{}] No more sockets. Stopping client actor", self.id);
-                    return;
+                    tracing::debug!(
+                        "[Clients/{}] No more sockets. Stopping client actor",
+                        self.id
+                    );
+                    return ControlFlow::Break(());
                 }
+
+                ControlFlow::Continue(())
             }
             Message::AddConnection(handle) => {
                 self.sockets.insert(handle.id.clone(), handle);
+                ControlFlow::Continue(())
             }
         }
     }
@@ -60,9 +75,13 @@ impl Client {
     async fn run(mut self) {
         loop {
             match self.receiver.recv().await {
-                Some(message) => self.handle_message(message).await,
+                Some(message) => {
+                    if self.handle_message(message).await.is_break() {
+                        return;
+                    }
+                }
                 None => {
-                    tracing::debug!("[{}] Actor send channel closed", self.id);
+                    tracing::debug!("[Clients/{}] Actor send channel closed", self.id);
                     return;
                 }
             }
