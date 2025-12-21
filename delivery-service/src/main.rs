@@ -24,7 +24,7 @@ use tower_http::{
 };
 use tracing::Level;
 
-use crate::actor::switchboard;
+use crate::actor::switchboard::{self, SendMessageError};
 
 mod actor;
 mod extractor;
@@ -130,24 +130,26 @@ async fn create_message(
     Path(to): Path<Arc<str>>,
     bytes: Bytes,
 ) -> impl IntoResponse {
-    let channels = state.channels.lock().await;
     //TODO think about not leaking if they exist or not
     //TODO think about leaking data through timings
-    debug!("New message for client {}", to);
-    let Some(sender) = channels.get(to.as_ref()) else {
-        error!("Client {} not found", to);
-        return StatusCode::NOT_FOUND;
-    };
-
-    if let Err(error) = sender.send(bytes).await {
-        tracing::error!("Error sending message {:?}", error);
+    let data = bytes.as_ref();
+    let data = Arc::from(data);
+    match state.switchboard.send_message(to, data).await {
+        Ok(()) => StatusCode::CREATED,
+        Err(SendMessageError::ClientNotFound) => StatusCode::NOT_FOUND,
+        Err(SendMessageError::Closed) => {
+            tracing::error!("Switchboard is closed unexpectedly");
+            StatusCode::INTERNAL_SERVER_ERROR
+        }
     }
-
-    StatusCode::CREATED
 }
 
 #[tracing::instrument(skip(socket, state))]
-async fn handle_socket(mut socket: WebSocket, State(state): State<AppState>, client_id: Arc<str>) {
+async fn handle_socket_old(
+    mut socket: WebSocket,
+    State(state): State<AppState>,
+    client_id: Arc<str>,
+) {
     debug!("[{}] connected", client_id);
 
     let _droppochino = Droppochino(client_id.to_string());
@@ -238,4 +240,14 @@ async fn subscribe_messages(
     Path(client_id): Path<Arc<str>>,
 ) -> impl IntoResponse {
     websocket.on_upgrade(|socket| handle_socket(socket, state, client_id))
+}
+
+async fn handle_socket(web_socket: WebSocket, State(state): State<AppState>, client_id: Arc<str>) {
+    if let Err(error) = state
+        .switchboard
+        .add_connection(client_id, web_socket)
+        .await
+    {
+        tracing::error!("Error adding connection to switchboard {:?}", error)
+    };
 }

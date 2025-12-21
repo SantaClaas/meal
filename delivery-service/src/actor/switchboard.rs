@@ -3,81 +3,82 @@ use std::{collections::HashMap, sync::Arc};
 use axum::extract::ws;
 use tokio::sync::{mpsc, oneshot};
 
-use crate::actor::{user, web_socket};
+use crate::actor::{client, web_socket};
 
-struct UserNotFound;
+struct ClientNotFound;
 
 enum Message {
     Send {
-        user_id: Arc<str>,
+        client_id: Arc<str>,
         message: Arc<[u8]>,
-        response: oneshot::Sender<Result<(), UserNotFound>>,
+        response: oneshot::Sender<Result<(), ClientNotFound>>,
     },
     Connect {
-        user_id: Arc<str>,
+        client_id: Arc<str>,
         web_socket: ws::WebSocket,
     },
 }
 
 struct Switchboard {
     receiver: mpsc::Receiver<Message>,
-    users: HashMap<Arc<str>, user::Handle>,
+    clients: HashMap<Arc<str>, client::Handle>,
 }
 
 impl Switchboard {
     fn new(receiver: mpsc::Receiver<Message>) -> Self {
         Self {
             receiver,
-            users: HashMap::new(),
+            clients: HashMap::new(),
         }
     }
 
     async fn handle_message(&mut self, message: Message) {
         match message {
             Message::Send {
-                user_id,
+                client_id,
                 message,
                 response,
             } => {
-                //TODO might need to store the message for the user to receive later
-                let Some(user) = self.users.get_mut(&user_id) else {
+                //TODO might need to store the message for the client to receive later
+                let Some(client) = self.clients.get_mut(&client_id) else {
                     // We don't care if they stopped waiting for the response
-                    _ = response.send(Err(UserNotFound));
+                    _ = response.send(Err(ClientNotFound));
                     return;
                 };
 
-                let Err(user::HandleError::Closed) = user.send_message(message).await else {
+                let Err(client::HandleError::Closed) = client.send_message(message).await else {
                     _ = response.send(Ok(()));
                     return;
                 };
 
-                // TODO user is not active. Store message for the user to receive later or send push notification
+                // TODO client is not active. Store message for the client to receive later or send push notification
                 _ = response.send(Ok(()));
             }
             Message::Connect {
-                user_id,
+                client_id,
                 web_socket,
             } => {
                 let socket = web_socket::Handle::new(web_socket);
 
-                let user = self
-                    .users
-                    .entry(user_id.clone())
-                    .or_insert_with(|| user::Handle::new(user_id.clone()));
+                let client = self
+                    .clients
+                    .entry(client_id.clone())
+                    .or_insert_with(|| client::Handle::new(client_id.clone()));
 
-                let Err(user::HandleError::Closed) = user.add_socket(socket.clone()).await else {
+                let Err(client::HandleError::Closed) = client.add_socket(socket.clone()).await
+                else {
                     return;
                 };
 
                 tracing::debug!(
-                    "[Switchboard] User actor {} is dead. Rebirthing user.",
-                    user_id
+                    "[Switchboard] Client actor {} is dead. Rebirthing client.",
+                    client_id
                 );
-                let user = user.rebirth();
-                self.users.insert(user_id, user.clone());
+                let client = client.rebirth();
+                self.clients.insert(client_id, client.clone());
 
-                if let Err(user::HandleError::Closed) = user.add_socket(socket).await {
-                    tracing::error!("[Switchboard] Just rebirthed user actor is already dead")
+                if let Err(client::HandleError::Closed) = client.add_socket(socket).await {
+                    tracing::error!("[Switchboard] Just rebirthed client actor is already dead")
                 }
             }
         }
@@ -103,16 +104,17 @@ pub(crate) struct Handle {
 
 pub(crate) enum SendMessageError {
     Closed,
-    UserNotFound,
+    ClientNotFound,
 }
 
+#[derive(Debug)]
 pub(crate) enum ConnectError {
     Closed,
 }
 
-impl From<UserNotFound> for SendMessageError {
-    fn from(_: UserNotFound) -> Self {
-        Self::UserNotFound
+impl From<ClientNotFound> for SendMessageError {
+    fn from(_: ClientNotFound) -> Self {
+        Self::ClientNotFound
     }
 }
 
@@ -131,15 +133,15 @@ impl Handle {
         Self { sender }
     }
 
-    pub(in crate::actor) async fn send_message(
+    pub(crate) async fn send_message(
         &self,
-        user_id: Arc<str>,
+        client_id: Arc<str>,
         message: Arc<[u8]>,
     ) -> Result<(), SendMessageError> {
         let (sender, receiver) = oneshot::channel();
         self.sender
             .send(Message::Send {
-                user_id,
+                client_id,
                 message,
                 response: sender,
             })
@@ -150,14 +152,14 @@ impl Handle {
         Ok(())
     }
 
-    pub async fn add_connection(
+    pub(crate) async fn add_connection(
         &self,
-        user_id: Arc<str>,
+        client_id: Arc<str>,
         web_socket: ws::WebSocket,
     ) -> Result<(), ConnectError> {
         self.sender
             .send(Message::Connect {
-                user_id,
+                client_id,
                 web_socket,
             })
             .await
