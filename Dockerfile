@@ -71,6 +71,8 @@ RUN npm install --global corepack@latest
 # Installs pnpm(?)
 RUN corepack enable
 #TODO use pnpm fetch to cache dependencies and only use pnpm install --offline to not refetch
+# Install git as build reads commit hash
+RUN apt-get update && apt-get install -y git
 
 
 
