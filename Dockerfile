@@ -127,6 +127,8 @@ RUN cargo build --package delivery-service --release
 # Final base image
 FROM debian:bookworm-slim AS final-delivery-service
 
+# Copy git repository
+COPY /.git /.git
 # Copy the build artifacts from the build stage
 COPY --from=build-delivery-service /target/release/delivery-service .
 # The ./app directory is where the delivery service looks for when app static files are requested
