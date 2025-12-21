@@ -1,13 +1,5 @@
 import { useNavigate } from "@solidjs/router";
-import {
-  createEffect,
-  createResource,
-  createSignal,
-  JSX,
-  onCleanup,
-  Show,
-  VoidProps,
-} from "solid-js";
+import { createResource, JSX, onCleanup, Show, VoidProps } from "solid-js";
 //TODO replace with SVG QR-Code solution. Maybe with something custom
 import QRCode from "qrcode";
 import { setupCrackle } from "../useCrackle";
