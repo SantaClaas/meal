@@ -23,7 +23,7 @@ pub(super) fn setup() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         ])
         .with_schema_url(
             [
-                KeyValue::new(attribute::SERVICE_VERSION, env!("CARGO_PKG_VERSION")),
+                KeyValue::new(attribute::SERVICE_NAME, env!("CARGO_PKG_NAME")),
                 KeyValue::new(attribute::SERVICE_VERSION, env!("CARGO_PKG_VERSION")),
             ],
             SCHEMA_URL,
