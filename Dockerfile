@@ -80,6 +80,9 @@ RUN apt-get update && apt-get install -y git
 # Build the app
 FROM node-base AS build-app
 WORKDIR /app-build
+
+# Copy git repository
+COPY /.git /.git
 # Copy build artifacts from core rust wasm build
 COPY --from=build-core /core/pkg ./core/pkg
 # Copy tool to compress files
@@ -127,8 +130,6 @@ RUN cargo build --package delivery-service --release
 # Final base image
 FROM debian:bookworm-slim AS final-delivery-service
 
-# Copy git repository
-COPY /.git /.git
 # Copy the build artifacts from the build stage
 COPY --from=build-delivery-service /target/release/delivery-service .
 # The ./app directory is where the delivery service looks for when app static files are requested
