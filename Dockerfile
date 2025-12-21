@@ -82,7 +82,7 @@ FROM node-base AS build-app
 WORKDIR /app-build
 
 # Copy git repository
-COPY /.git /.git
+COPY ./.git ./.git
 # Copy build artifacts from core rust wasm build
 COPY --from=build-core /core/pkg ./core/pkg
 # Copy tool to compress files
@@ -103,6 +103,7 @@ RUN pnpm install --frozen-lockfile
 # Copy over the source to build the application
 COPY ./app ./app
 
+RUN ls -la
 # Build and cache
 RUN pnpm run build
 
