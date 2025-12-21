@@ -67,6 +67,11 @@ impl Switchboard {
 
                 let Err(client::HandleError::Closed) = client.add_socket(socket.clone()).await
                 else {
+                    tracing::debug!(
+                        "[Switchboard] Client {} added socket {}",
+                        socket.id,
+                        client_id
+                    );
                     return;
                 };
 
@@ -75,11 +80,18 @@ impl Switchboard {
                     client_id
                 );
                 let client = client.rebirth();
-                self.clients.insert(client_id, client.clone());
+                self.clients.insert(client_id.clone(), client.clone());
 
+                let socket_id = socket.id.clone();
                 if let Err(client::HandleError::Closed) = client.add_socket(socket).await {
                     tracing::error!("[Switchboard] Just rebirthed client actor is already dead")
                 }
+
+                tracing::debug!(
+                    "[Switchboard] Client {} added socket {}",
+                    client_id,
+                    socket_id
+                );
             }
         }
     }
