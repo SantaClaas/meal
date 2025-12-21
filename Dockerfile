@@ -103,7 +103,7 @@ RUN pnpm install --frozen-lockfile
 # Copy over the source to build the application
 COPY ./app ./app
 
-RUN ls -la
+
 # Build and cache
 RUN pnpm run build
 
