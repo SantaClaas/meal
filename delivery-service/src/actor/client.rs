@@ -9,13 +9,13 @@ enum Message {
     AddConnection(web_socket::Handle),
 }
 
-struct User {
+struct Client {
     id: Arc<str>,
     receiver: mpsc::Receiver<Message>,
     sockets: HashMap<Arc<str>, web_socket::Handle>,
 }
 
-impl User {
+impl Client {
     fn new(id: Arc<str>, receiver: mpsc::Receiver<Message>) -> Self {
         Self {
             id,
@@ -45,9 +45,9 @@ impl User {
                     self.sockets.remove(&id);
                 }
 
-                // If there are no more sockets, remove the user
+                // If there are no more sockets, remove the client
                 if self.sockets.is_empty() {
-                    tracing::debug!("[{}] No more sockets. Stopping user actor", self.id);
+                    tracing::debug!("[{}] No more sockets. Stopping client actor", self.id);
                     return;
                 }
             }
@@ -84,7 +84,7 @@ impl Handle {
     pub(in crate::actor) fn new(id: Arc<str>) -> Self {
         let (sender, receiver) = mpsc::channel(8);
 
-        let actor = User::new(id, receiver);
+        let actor = Client::new(id, receiver);
         let id = actor.id.clone();
         tokio::spawn(actor.run());
 
