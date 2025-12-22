@@ -8,6 +8,7 @@ pub(in crate::route) struct Template {
     error: Arc<str>,
 }
 
+/// Naive error response that should only be returned to authorized users as it exposes internal errors.
 pub(in crate::route) struct Response {
     template: Template,
 }
