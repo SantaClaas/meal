@@ -50,6 +50,8 @@ export default defineConfig({
   build: {
     // Fixes top level await build error and support should be fine, right?...right?
     target: "esnext",
+    // Source code is public so source maps can be included
+    sourcemap: true,
   },
   optimizeDeps: {
     exclude: ["@sqlite.org/sqlite-wasm"],
