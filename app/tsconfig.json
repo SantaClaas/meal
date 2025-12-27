@@ -21,7 +21,6 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "checkJs": true
-    // "types": ["vite/client"]
   },
   "include": ["src"],
   "exclude": ["src/workers"],

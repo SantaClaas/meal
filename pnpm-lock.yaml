@@ -70,13 +70,16 @@ importers:
         version: 6.0.7(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.29.2)(terser@5.39.0)(yaml@2.5.1)
       vite-plugin-pwa:
         specifier: ^1.2.0
-        version: 1.2.0(@vite-pwa/assets-generator@1.0.2)(vite@6.0.7(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.29.2)(terser@5.39.0)(yaml@2.5.1))(workbox-build@7.3.0(@types/babel__core@7.20.5))(workbox-window@7.3.0)
+        version: 1.2.0(@vite-pwa/assets-generator@1.0.2)(vite@6.0.7(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.29.2)(terser@5.39.0)(yaml@2.5.1))(workbox-build@7.3.0(@types/babel__core@7.20.5))(workbox-window@7.4.0)
       vite-plugin-solid:
         specifier: ^2.11.10
         version: 2.11.10(solid-js@1.9.10)(vite@6.0.7(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.29.2)(terser@5.39.0)(yaml@2.5.1))
       vite-plugin-wasm:
         specifier: ^3.4.1
         version: 3.4.1(vite@6.0.7(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.29.2)(terser@5.39.0)(yaml@2.5.1))
+      workbox-window:
+        specifier: ^7.4.0
+        version: 7.4.0
 
   tugboat:
     devDependencies:
@@ -3269,6 +3272,9 @@ packages:
   workbox-core@7.3.0:
     resolution: {integrity: sha512-Z+mYrErfh4t3zi7NVTvOuACB0A/jA3bgxUN3PwtAVHvfEsZxV9Iju580VEETug3zYJRc0Dmii/aixI/Uxj8fmw==}
 
+  workbox-core@7.4.0:
+    resolution: {integrity: sha512-6BMfd8tYEnN4baG4emG9U0hdXM4gGuDU3ectXuVHnj71vwxTFI7WOpQJC4siTOlVtGqCUtj0ZQNsrvi6kZZTAQ==}
+
   workbox-expiration@7.3.0:
     resolution: {integrity: sha512-lpnSSLp2BM+K6bgFCWc5bS1LR5pAwDWbcKt1iL87/eTSJRdLdAwGQznZE+1czLgn/X05YChsrEegTNxjM067vQ==}
 
@@ -3301,6 +3307,9 @@ packages:
 
   workbox-window@7.3.0:
     resolution: {integrity: sha512-qW8PDy16OV1UBaUNGlTVcepzrlzyzNW/ZJvFQQs2j2TzGsg6IKjcpZC1RSquqQnTOafl5pCj5bGfAHlCjOOjdA==}
+
+  workbox-window@7.4.0:
+    resolution: {integrity: sha512-/bIYdBLAVsNR3v7gYGaV4pQW3M3kEPx5E8vDxGvxo6khTrGtSSCS7QiFKv9ogzBgZiy0OXLP9zO28U/1nF1mfw==}
 
   wrap-ansi@6.2.0:
     resolution: {integrity: sha512-r6lPcBGxZXlIcymEu7InxDMhdW0KDxpLgoFLcguasxCaJ/SOIZwINatK9KY/tf+ZrlywOKU0UDj3ATXUBfxJXA==}
@@ -6598,14 +6607,14 @@ snapshots:
 
   validate-html-nesting@1.2.2: {}
 
-  vite-plugin-pwa@1.2.0(@vite-pwa/assets-generator@1.0.2)(vite@6.0.7(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.29.2)(terser@5.39.0)(yaml@2.5.1))(workbox-build@7.3.0(@types/babel__core@7.20.5))(workbox-window@7.3.0):
+  vite-plugin-pwa@1.2.0(@vite-pwa/assets-generator@1.0.2)(vite@6.0.7(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.29.2)(terser@5.39.0)(yaml@2.5.1))(workbox-build@7.3.0(@types/babel__core@7.20.5))(workbox-window@7.4.0):
     dependencies:
       debug: 4.4.3
       pretty-bytes: 6.1.1
       tinyglobby: 0.2.12
       vite: 6.0.7(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.29.2)(terser@5.39.0)(yaml@2.5.1)
       workbox-build: 7.3.0(@types/babel__core@7.20.5)
-      workbox-window: 7.3.0
+      workbox-window: 7.4.0
     optionalDependencies:
       '@vite-pwa/assets-generator': 1.0.2
     transitivePeerDependencies:
@@ -6778,6 +6787,8 @@ snapshots:
 
   workbox-core@7.3.0: {}
 
+  workbox-core@7.4.0: {}
+
   workbox-expiration@7.3.0:
     dependencies:
       idb: 7.1.1
@@ -6832,6 +6843,11 @@ snapshots:
     dependencies:
       '@types/trusted-types': 2.0.7
       workbox-core: 7.3.0
+
+  workbox-window@7.4.0:
+    dependencies:
+      '@types/trusted-types': 2.0.7
+      workbox-core: 7.4.0
 
   wrap-ansi@6.2.0:
     dependencies:

@@ -15,16 +15,14 @@ import Debug from "./routes/debug";
 import Invite from "./routes/invite";
 import Join from "./routes/join";
 import { runSocketProxy } from "./socketProxy.ts";
+import { register } from "./service-worker/register";
 
+register();
 
 void runSocketProxy();
 
-/**
- * Defined in the vite configuration vite.config.ts
- */
-declare const __GIT_COMMIT_HASH__: string;
-render(
-  () => (
+function App() {
+  return (
     <AppProvider>
       <Router>
         <Route path={ROUTES.INDEX} component={Index}>
@@ -47,6 +45,11 @@ render(
         {version}+{__GIT_COMMIT_HASH__}
       </span>
     </AppProvider>
-  ),
-  document.body
-);
+  );
+}
+
+/**
+ * Defined in the vite configuration vite.config.ts
+ */
+declare const __GIT_COMMIT_HASH__: string;
+render(App, document.body);

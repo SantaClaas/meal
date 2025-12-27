@@ -1,5 +1,7 @@
 import { precacheAndRoute } from "workbox-precaching";
 import init, { Client, DecodedPackage, Friend } from "meal-core";
+import wasm from "../../../core/pkg/meal_core_bg.wasm?url";
+
 import { expose } from "../crackle";
 import { Group, IncomingMessage, OutgoingMessage } from "../database/schema";
 import { broadcastMessage } from "../broadcast";
@@ -11,6 +13,9 @@ import {
   pushMessage,
 } from "../database";
 import { messagesUrl } from "../messagesUrl";
+
+console.debug("Initializing service worker", wasm);
+const initialization = init({ module_or_path: wasm });
 
 // Reduce noise
 // @ts-expect-error
@@ -88,7 +93,7 @@ async function initializeClient(): Promise<Client> {
   // Have to use wasm-pack --target web to build the wasm package to get the init function because with the bundler target
   // it is included as a top level await which is not supported by service workers according to the web spec
   // Has to be initialized before we do anything with the Rust code. It also needs to be initialized if a client exists
-  await init();
+  await initialization;
 
   // Try to load existing client
   const directory = await navigator.storage.getDirectory();
