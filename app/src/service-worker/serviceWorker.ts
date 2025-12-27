@@ -1,4 +1,4 @@
-import { precacheAndRoute } from "workbox-precaching";
+import { cleanupOutdatedCaches, precacheAndRoute } from "workbox-precaching";
 import init, { Client, DecodedPackage, Friend } from "meal-core";
 import { expose } from "../crackle";
 import { Group, IncomingMessage, OutgoingMessage } from "../database/schema";
@@ -19,6 +19,8 @@ const initialization = init();
 self.__WB_DISABLE_DEV_LOGS = true;
 
 console.debug("Service worker: environment", process.env.NODE_ENV);
+
+cleanupOutdatedCaches();
 // @ts-expect-error This variable is replaced by workbox through vite pwa plugin
 precacheAndRoute(self.__WB_MANIFEST);
 
@@ -42,6 +44,42 @@ const fileSizeFormatter = new Intl.NumberFormat(undefined, {
   unit: "megabyte",
 });
 
+/** Wraps a file handle in a nice disposable interface and ensures compatibility with Safari < 26 */
+async function createWritable(fileHandle: FileSystemFileHandle): Promise<{
+  write: (data: Uint8Array) => Promise<void>;
+  [Symbol.dispose](): void;
+}> {
+  // Safari < 26 compatibility
+  if (!("createWritable" in fileHandle)) {
+    const accessHandle = await (
+      fileHandle as FileSystemFileHandle
+    ).createSyncAccessHandle();
+
+    return {
+      write(data: Uint8Array): Promise<void> {
+        accessHandle.write(data);
+        accessHandle.flush();
+        return Promise.resolve();
+      },
+
+      [Symbol.dispose]() {
+        accessHandle.close();
+      },
+    };
+  }
+
+  const writable = await fileHandle.createWritable();
+  return {
+    async write(data: Uint8Array) {
+      assertNotShared(data);
+      await writable.write(data);
+    },
+    [Symbol.dispose]() {
+      writable.close();
+    },
+  };
+}
+
 async function persistClient(client: Client) {
   // Persist client state
   const directory = await navigator.storage.getDirectory();
@@ -50,16 +88,10 @@ async function persistClient(client: Client) {
     create: true,
   });
 
-  const writeStream = await fileHandle.createWritable();
+  using writable = await createWritable(fileHandle);
 
   const serializedClient = client.serialize();
-  assertNotShared(serializedClient);
-
-  try {
-    await writeStream.write(serializedClient.buffer);
-  } finally {
-    writeStream.close();
-  }
+  writable.write(serializedClient);
 
   console.debug(
     `[Service worker]: Stored client with length ${fileSizeFormatter.format(
@@ -333,11 +365,11 @@ async function handleMessage(
 
 self.addEventListener("message", handleMessage);
 self.addEventListener("install", () => {
-  console.debug("Forcing service worker to become active");
+  console.debug("[Service worker] Forcing service worker to become active");
   return self.skipWaiting();
 });
 // Take over the message channels from the previous service worker
 self.addEventListener("activate", () => {
-  console.debug("Taking over message channels");
+  console.debug("[Service worker] Taking over message channels");
   return self.clients.claim();
 });
