@@ -3,7 +3,13 @@
     "target": "ES2024",
     "useDefineForClassFields": true,
     "module": "ESNext",
-    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2024",
+      "DOM",
+      "DOM.Iterable",
+      //TODO remove web worker that is just added to fix type error in service worker that shouldn't be scanned in the first place by this tsconfig
+      "WebWorker"
+    ],
     "skipLibCheck": true,
 
     /* Bundler mode */
