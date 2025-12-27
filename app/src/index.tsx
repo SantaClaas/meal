@@ -15,9 +15,13 @@ import Debug from "./routes/debug";
 import Invite from "./routes/invite";
 import Join from "./routes/join";
 import { runSocketProxy } from "./socketProxy.ts";
-import { register } from "./service-worker/register";
+import { register as registerServiceWorker } from "./service-worker/register";
 
-register();
+/**
+ * Defined in the vite configuration vite.config.ts
+ */
+declare const __GIT_COMMIT_HASH__: string;
+registerServiceWorker();
 
 void runSocketProxy();
 
@@ -48,8 +52,4 @@ function App() {
   );
 }
 
-/**
- * Defined in the vite configuration vite.config.ts
- */
-declare const __GIT_COMMIT_HASH__: string;
 render(App, document.body);

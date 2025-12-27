@@ -1,7 +1,5 @@
 import { precacheAndRoute } from "workbox-precaching";
 import init, { Client, DecodedPackage, Friend } from "meal-core";
-import wasm from "../../../core/pkg/meal_core_bg.wasm?url";
-
 import { expose } from "../crackle";
 import { Group, IncomingMessage, OutgoingMessage } from "../database/schema";
 import { broadcastMessage } from "../broadcast";
@@ -14,8 +12,7 @@ import {
 } from "../database";
 import { messagesUrl } from "../messagesUrl";
 
-console.debug("Initializing service worker", wasm);
-const initialization = init({ module_or_path: wasm });
+const initialization = init();
 
 // Reduce noise
 // @ts-expect-error
