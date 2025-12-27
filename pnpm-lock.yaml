@@ -77,9 +77,6 @@ importers:
       vite-plugin-wasm:
         specifier: ^3.4.1
         version: 3.4.1(vite@6.0.7(@types/node@25.0.1)(jiti@2.6.1)(lightningcss@1.29.2)(terser@5.39.0)(yaml@2.5.1))
-      workbox-window:
-        specifier: ^7.4.0
-        version: 7.4.0
 
   tugboat:
     devDependencies:
