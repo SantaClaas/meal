@@ -11,6 +11,7 @@ import {
   pushMessage,
 } from "../database";
 import { messagesUrl } from "../messagesUrl";
+import "./disposePolyfill";
 
 const initialization = init();
 
