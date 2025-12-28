@@ -51,6 +51,8 @@ async function createWritable(fileHandle: FileSystemFileHandle): Promise<{
 }> {
   // Safari < 26 compatibility
   if (!("createWritable" in fileHandle)) {
+    // Not sure how to solve this without casting as it is turned into never by the assertion in the if statement
+    // but Safari does not have createWritable
     const accessHandle = await (
       fileHandle as FileSystemFileHandle
     ).createSyncAccessHandle();

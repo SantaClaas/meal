@@ -8,7 +8,8 @@
       "DOM",
       "DOM.Iterable",
       //TODO remove web worker that is just added to fix type error in service worker that shouldn't be scanned in the first place by this tsconfig
-      "WebWorker"
+      "WebWorker",
+      "ESNext.Disposable"
     ],
     "skipLibCheck": true,
 
