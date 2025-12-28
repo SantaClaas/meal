@@ -181,7 +181,8 @@ async function postMessage(friendId: string, body: Uint8Array<ArrayBuffer>) {
 function assertNotShared(
   data: Uint8Array<ArrayBufferLike>
 ): asserts data is Uint8Array<ArrayBuffer> {
-  if (data.buffer instanceof SharedArrayBuffer)
+  // Need to check if SharedArrayBuffer is even defined for Safari
+  if ("SharedArrayBuffer" in globalThis && data.buffer instanceof SharedArrayBuffer)
     throw new Error("Uint8Array uses a SharedArrayBuffer");
 }
 
