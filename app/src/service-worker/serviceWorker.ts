@@ -279,29 +279,36 @@ const handler = {
   },
 
   async sendMessage(request: SendMessageRequest) {
+    console.debug("[Serviceworker] Sending message", request);
     const message: OutgoingMessage = {
       type: "outgoing",
       sentAt: request.sentAt,
       text: request.text,
     };
 
+    console.debug("[Serviceworker] Broadcasting message");
     broadcastMessage({
       type: "Message added",
       groupId: request.groupId,
       message,
     });
 
+    console.debug("[Serviceworker] Storing message");
     // Storing the message should happen even if sending fails as that can be retried
     const storeMessage = pushMessage(request.groupId, message);
 
     const client = await getClient;
+    console.debug("[Serviceworker] Packing message");
     const body = client.send_message(request.groupId, {
       sent_at: request.sentAt.toISOString(),
       text: request.text,
     });
 
     assertNotShared(body);
-    await Promise.all([postMessage(request.friendId, body), storeMessage]);
+    console.debug("[Serviceworker] Posting message");
+    const [response] = await Promise.all([postMessage(request.friendId, body), storeMessage]);
+
+    console.debug("[Serviceworker] Message sent", response.status);
   },
 
   async wipe() {
