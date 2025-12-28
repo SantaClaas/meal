@@ -121,26 +121,38 @@ async function deleteClient() {
   }
 }
 
+
+
 async function initializeClient(): Promise<Client> {
   // Have to use wasm-pack --target web to build the wasm package to get the init function because with the bundler target
   // it is included as a top level await which is not supported by service workers according to the web spec
   // Has to be initialized before we do anything with the Rust code. It also needs to be initialized if a client exists
   await initialization;
 
+  console.debug("[Service worker/client initialization]: Initializing client");
   // Try to load existing client
   const directory = await navigator.storage.getDirectory();
   const fileHandle = await getFile(directory, FILE_NAME);
 
-  if (fileHandle !== undefined) {
-    const file = await fileHandle.getFile();
-    const buffer = await file.arrayBuffer();
-    return Client.from_serialized(new Uint8Array(buffer));
+  console.debug("[Service worker/client initialization]: File handle acquired", fileHandle);
+
+  if(fileHandle === undefined || fileHandle.kind !== "file"){
+    console.debug("[Service worker/client initialization]: No file handle, creating new client");
+    const client = new Client();
+    return await persistClient(client);
   }
 
-  // Create new client
-  const client = new Client();
+  const file = await fileHandle.getFile();
 
-  return await persistClient(client);
+  if(file.size === 0) {
+    console.debug("[Service worker/client initialization]: Empty file handle, creating new client");
+    const client = new Client();
+    return await persistClient(client);
+  }
+
+  console.debug("[Service worker/client initialization]: Deserializing client");
+  const buffer = await file.arrayBuffer();
+  return Client.from_serialized(new Uint8Array(buffer));
 }
 
 let getClient = initializeClient();
