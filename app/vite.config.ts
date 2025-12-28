@@ -4,7 +4,6 @@ import wasm from "vite-plugin-wasm";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA as vitePwa } from "vite-plugin-pwa";
 import { execSync } from "node:child_process";
-import typeScriptConfiguration from "./tsconfig.json";
 /** @import { defineConfig } from "vite"; */
 
 const gitHash = execSync("git rev-parse --short HEAD").toString().trim();
@@ -62,7 +61,8 @@ export default defineConfig({
   build: {
     // Fixes top level await build error and support should be fine, right?...right?
     // Needs to be not ESNEXT to compile using statement down as it is not supported in Safari yet
-    target: typeScriptConfiguration.compilerOptions.target,
+    // Has to stay the same as tsconfig.json target but can't import that because importing JSON does not support comments
+    target: "ES2024",
     sourcemap: IS_SOURCE_MAPS_ENABLED,
     minify: false,
   },
