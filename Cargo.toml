@@ -1,5 +1,5 @@
 [workspace]
-members = ["delivery-service", "core", "pumpe", "tugboat"]
+members = ["delivery-service", "core", "pumpe", "tugboat", "app/src-tauri"]
 resolver = "2"
 
 [workspace.dependencies]
