@@ -1,22 +1,20 @@
 {
-  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "meal",
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "tauri-app",
   "version": "0.1.0",
-  "identifier": "com.tauri.dev",
+  "identifier": "dev.claas.tauri-app",
   "build": {
-    "frontendDist": "../dist",
-    "devUrl": "http://localhost:5173",
     "beforeDevCommand": "pnpm dev",
-    "beforeBuildCommand": "pnpm build"
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
   },
   "app": {
     "windows": [
       {
-        "title": "meal",
+        "title": "tauri-app",
         "width": 800,
-        "height": 600,
-        "resizable": true,
-        "fullscreen": false
+        "height": 600
       }
     ],
     "security": {
@@ -27,7 +25,7 @@
     "deep-link": {
       "mobile": [
         {
-          "scheme": ["meal-share"],
+          "scheme": ["tauri-share"],
           "appLink": false,
           "pathPrefix": ["/share"]
         }

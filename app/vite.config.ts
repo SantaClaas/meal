@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, ServerOptions } from "vite";
 import solid from "vite-plugin-solid";
 import wasm from "vite-plugin-wasm";
 import tailwindcss from "@tailwindcss/vite";
@@ -7,9 +7,53 @@ import { execSync } from "node:child_process";
 /** @import { defineConfig } from "vite"; */
 
 const gitHash = execSync("git rev-parse --short HEAD").toString().trim();
-
+const tauriHost = process.env.TAURI_DEV_HOST;
+const isTauriApp = tauriHost !== undefined;
 // Source code is public so source maps can be included
 const IS_SOURCE_MAPS_ENABLED = true;
+
+function configureServer(): ServerOptions {
+  const defaultOptions: ServerOptions = {
+    // Using a proxy during development to use vite and the rust delivery service while vite is not needed in production
+    proxy: {
+      "/messages": {
+        target: "http://127.0.0.1:3000/",
+        changeOrigin: true,
+        ws: true,
+      },
+    },
+
+    headers: {
+      // Support SharedArrayBuffer to send files to workers which is required for Safari to write files to the private origin file system
+      // Also might be nice to increase security
+      // Needed for SQLite wasm
+      "Cross-Origin-Opener-Policy": "same-origin",
+      "Cross-Origin-Embedder-Policy": "require-corp",
+    },
+  };
+
+  if (!isTauriApp) return defaultOptions;
+
+  return {
+    ...defaultOptions,
+    // Tauri expects a fixed port, fail if that port is not available
+    port: 1420,
+    strictPort: true,
+    host: tauriHost || false,
+    hmr: tauriHost
+      ? {
+          protocol: "ws",
+          host: tauriHost,
+          port: 1421,
+        }
+      : undefined,
+    watch: {
+      // Tell Vite to ignore watching `src-tauri`
+      ignored: ["**/src-tauri/**"],
+    },
+  };
+}
+
 export default defineConfig({
   define: {
     __GIT_COMMIT_HASH__: JSON.stringify(gitHash),
@@ -40,24 +84,9 @@ export default defineConfig({
       },
     }),
   ],
-  server: {
-    // Using a proxy during development to use vite and the rust delivery service while vite is not needed in production
-    proxy: {
-      "/messages": {
-        target: "http://127.0.0.1:3000/",
-        changeOrigin: true,
-        ws: true,
-      },
-    },
 
-    headers: {
-      // Support SharedArrayBuffer to send files to workers which is required for Safari to write files to the private origin file system
-      // Also might be nice to increase security
-      // Needed for SQLite wasm
-      "Cross-Origin-Opener-Policy": "same-origin",
-      "Cross-Origin-Embedder-Policy": "require-corp",
-    },
-  },
+  clearScreen: isTauriApp ? false : undefined,
+  server: configureServer(),
   build: {
     // Fixes top level await build error and support should be fine, right?...right?
     // Needs to be not ESNEXT to compile using statement down as it is not supported in Safari yet

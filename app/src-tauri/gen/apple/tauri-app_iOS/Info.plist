@@ -40,5 +40,20 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>tauri-share</string>
+	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>tauri-share</string>
+			</array>
+			<key>CFBundleURLName</key>
+			<string>tauri-share</string>
+		</dict>
+	</array>
 </dict>
 </plist>
