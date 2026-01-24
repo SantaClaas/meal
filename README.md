@@ -15,6 +15,7 @@ Trying out OpenMLS + Rust + WebAssembly + SolidJS
   - A lot of work and not worth it at the moment
   - Continuously profile size
   - Record size changes over time to detect degradations
+- [ ] [Push notifications](https://github.com/inKibra/tauri-plugins?tab=readme-ov-file) on iOS
 
 # Requirements
 
