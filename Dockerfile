@@ -70,6 +70,9 @@ FROM node:lts-slim AS node-base
 RUN npm install --global corepack@latest
 # Installs pnpm(?)
 RUN corepack enable
+# Pin pnpm as corepack picks the latest version otherwise. pnpm 12 fails pnpm fetch without a lockfile and on
+# unapproved dependency build scripts
+RUN corepack install --global pnpm@10.34.6
 #TODO use pnpm fetch to cache dependencies and only use pnpm install --offline to not refetch
 # Install git as build reads commit hash
 RUN apt-get update && apt-get install -y git
