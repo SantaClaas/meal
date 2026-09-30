@@ -21,7 +21,7 @@ use crate::{
     TugState,
 };
 
-use super::{get_container, GetContainerError, Port, StatementError};
+use super::{get_container, GetContainerError, Port, StatementError, HOST_IP};
 
 #[derive(thiserror::Error, Debug)]
 pub(in crate::route) enum ModificationError {
@@ -123,7 +123,7 @@ pub(super) async fn modify(
 
                 if let Some(host_port) = host_port {
                     host_port_bindings.replace(vec![PortBinding {
-                        host_ip: Some("0.0.0.0".to_string()),
+                        host_ip: Some(HOST_IP.to_string()),
                         host_port: Some(host_port.to_string()),
                     }]);
                 }
