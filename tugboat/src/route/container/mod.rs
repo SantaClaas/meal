@@ -17,7 +17,9 @@ use bollard::{
         RemoveContainerOptions, StartContainerOptions, StopContainerOptions,
     },
     image::CreateImageOptions,
-    secret::{ContainerInspectResponse, HostConfig, PortBinding},
+    secret::{
+        ContainerInspectResponse, HostConfig, PortBinding, RestartPolicy, RestartPolicyNameEnum,
+    },
     Docker,
 };
 use libsql::named_params;
@@ -30,6 +32,11 @@ use crate::{
 };
 
 use super::token;
+
+/// Host IP that published container ports bind to. Docker's port publishing bypasses the host firewall, so binding to
+/// all interfaces would expose the container directly. Containers are expected to be reached through a reverse proxy
+/// on the same host.
+pub(super) const HOST_IP: &str = "127.0.0.1";
 
 enum Status {
     Created,
@@ -257,9 +264,13 @@ async fn get_container(
 /// container runtime and changing them can break creating the container depending on the runtime
 /// For example podman with cgroupv2 can not set the memory swappiness on a container and will error with
 /// "500: crun: cannot set memory swappiness with cgroupv2: OCI runtime error"
+/// Volumes and the restart policy are migrated so the container keeps its data and restarts after a reboot.
 fn migrate_host_configuration(container: &HostConfig) -> HostConfig {
     HostConfig {
         port_bindings: container.port_bindings.clone(),
+        binds: container.binds.clone(),
+        mounts: container.mounts.clone(),
+        restart_policy: container.restart_policy.clone(),
         ..Default::default()
     }
 }
@@ -337,27 +348,33 @@ pub(super) async fn create(
 
     // Port bindings configuration
 
-    let host_configuration = request.container_port.map(|container_port| {
+    let port_bindings = request.container_port.map(|container_port| {
         let mut port_bindings = HashMap::<String, Option<Vec<PortBinding>>>::new();
         let key = format!("{}/tcp", container_port);
 
         let host_port_bindings = port_bindings.entry(key).or_default();
         if let Some(host_port) = request.host_port {
             host_port_bindings.replace(vec![PortBinding {
-                host_ip: Some("0.0.0.0".to_string()),
+                host_ip: Some(HOST_IP.to_string()),
                 host_port: Some(host_port.to_string()),
             }]);
         }
 
-        HostConfig {
-            port_bindings: Some(port_bindings),
-            ..Default::default()
-        }
+        port_bindings
     });
+
+    let host_configuration = HostConfig {
+        port_bindings,
+        restart_policy: Some(RestartPolicy {
+            name: Some(RestartPolicyNameEnum::UNLESS_STOPPED),
+            maximum_retry_count: None,
+        }),
+        ..Default::default()
+    };
 
     let configuration = container::Config::<String> {
         image: Some(String::from(request.image.as_ref())),
-        host_config: host_configuration,
+        host_config: Some(host_configuration),
         labels: Some(HashMap::from([(label::TAG.to_owned(), String::default())])),
         ..Default::default()
     };
